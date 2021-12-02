@@ -1,0 +1,10 @@
+[
+  {
+    "outputFileName": "browser.min.js",
+    "inputFiles": [
+      "browser.js"
+    ],
+    "sourceMap": false,
+    "sourceMapRootPath": null
+  }
+]
