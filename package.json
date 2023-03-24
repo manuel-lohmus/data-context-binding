@@ -1,6 +1,6 @@
 {
   "name": "data-context-binding",
-  "version": "1.0.0",
+  "version": "1.0.11",
   "description": "Data context binding library for browser",
   "keywords": [
     "data",
@@ -9,7 +9,7 @@
     "model",
     "data-binding"
   ],
-  "author": "Manuel Lõhmus <manuel@hauss.ee>",
+  "author": "Manuel LÃµhmus <manuel@hauss.ee>",
   "license": "MIT",
   "main": "index.js",
   "browser": "browser.min.js",
