@@ -6,7 +6,7 @@
 
 Data context binding library for browser.
 
-## Installing
+## Installation
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/data-context-binding@1"></script>
