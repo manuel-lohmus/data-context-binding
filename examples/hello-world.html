@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>data-context-binding</title>
+    <!-- STEP 1. Import the modules 'data-context' and 'data-context-binding'.
+        Import for an HTML page hosted on the server. -->
+    <!--<script async src="../datacontext.js"></script>-->
+    <!--<script async src="../index.js"></script>-->
+    <!-- STEP 1. Import the modules 'data-context' and 'data-context-binding'.
+        Import for a standalone HTML page. -->
+    <script async src="https://cdn.jsdelivr.net/npm/data-context"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/data-context-binding"></script>
+    <!-- STEP 2. Add the data to a container with the ID 'data'. Its contents will be read automatically. -->
+    <script id="data" type="application/json">
+        {
+            "doc": {
+                /* 1: The metadata-title context object */
+                /* 2: The metadata-title context object */
+                "title": "Hello World", // The title comment
+                /* The metadata-description context object */
+                "description": "This is a simple example of data context binding.", // The description comment
+                /* { "hidden": "This is a must be hidden value." } */
+                "debug": false
+            }
+        }
+    </script>
+</head>
+<body>
+    <!-- STEP 3. Bind data to the DOM elements.
+        In this container we use the 'doc' object.
+        The 'path' attribute is part of property path. -->
+    <div path="doc">
+        <div>
+            <!-- STEP 3. Bind data to the DOM elements.
+            The `path` attribute  is property path in the data object.
+            The `bind` attribute is performed data binding. -->
+            <h1 path="title" bind>Title</h1>
+            <!-- STEP 3. Bind data to the DOM elements.
+            The `path` attribute  is property path in the data object.
+            The `bind` attribute is performed data binding. -->
+            <p path="description" bind>Description</p>
+        </div>
+    </div>
+    <hr />
+    <h3>Edit the values:</h3>
+    <label for="title">Title:</label>
+    <br />
+    <!-- STEP 3. Bind data to the DOM elements.
+    The `path` attribute  is property path in the data object.
+    The `bind` attribute is performed data binding. -->
+    <input type="text" path="doc.title" bind style="width:380px" />
+    <br />
+    <br />
+    <label>Description:</label>
+    <br />
+    <!-- STEP 3. Bind data to the DOM elements.
+    The `path` attribute  is property path in the data object.
+    The `bind` attribute is performed data binding. -->
+    <input type="text" path="doc.description" bind style="width:380px" />
+    <hr />
+    <label>Live changes:</label>
+    <br />
+    <!-- STEP 3. Bind data to the DOM elements.
+    The `bind` attribute is performed data binding. 
+    Listens for data context changes -->
+    <textarea cols="50" rows="10" bind="change"></textarea>
+</body>
+</html>

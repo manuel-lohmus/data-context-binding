@@ -1,30 +1,35 @@
 {
   "name": "data-context-binding",
-  "version": "1.0.12",
-  "description": "Data context binding library for browser",
+  "description": "Simple and lightweight solution for binding data to DOM elements.",
+  "version": "2.0.0-beta.1",
+  "license": "MIT",
   "keywords": [
     "data",
     "context",
     "binding",
     "model",
-    "data-binding"
+    "data-binding",
+    "bind"
   ],
   "author": "Manuel Lõhmus <manuel@hauss.ee>",
-  "license": "MIT",
   "main": "index.js",
-  "browser": "browser.min.js",
+  "browser": "index.js",
+  "types": "index.d.ts",
   "files": [
-    "browser.min.js",
+    "index.d.ts",
     "index.js",
+    "index.test.html",
     "LICENSE",
     "package.json",
     "README.md",
-    "README.html"
+    "template.html"
   ],
+  "scripts": { "test": "start ./index.test.html" },
   "homepage": "https://github.com/manuel-lohmus/data-context-binding#readme",
   "bugs": "https://github.com/manuel-lohmus/data-context-binding/issues",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/manuel-lohmus/data-context-binding.git"
-  }
+  },
+  "funding": "https://manuel-lohmus.github.io/data-context-binding/README.html#license"
 }
