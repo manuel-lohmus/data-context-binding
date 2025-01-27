@@ -371,3 +371,4 @@ FodyWeavers.xsd
 /.gitignore
 /browser_test.bat
 /nuget.config
+/.gitignore
