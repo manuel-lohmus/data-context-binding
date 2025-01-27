@@ -60,7 +60,7 @@ DOM elements
 
 ## Testing
 
-To test, open the 'index.test.html' file. The tests will run and the results will be displayed.
+To test, open the '[index.test.html](https://manuel-lohmus.github.io/data-context-binding/index.test.html)' file. The tests will run and the results will be displayed.
 
 or on the command line in the project directory 'data-context-binding':
 
@@ -77,7 +77,7 @@ This example demonstrates a simple and effective way to bind data to DOM element
  - **Editable Fields**: Allow users to edit data and reflect changes in real-time.
  - **Live Changes**: Listen for data changes and update the DOM dynamically.
 
-hello-world.html:
+[hello-world.html](https://manuel-lohmus.github.io/data-context-binding/examples/hello-world.html):
 ```html
 <!DOCTYPE html>
 <html>
@@ -90,8 +90,8 @@ hello-world.html:
     <!--<script src="../index.js"></script>-->
     <!-- STEP 1. Import the modules 'data-context' and 'data-context-binding'.
         Import for a standalone HTML page. -->
-    <script src="https://cdn.jsdelivr.net/npm/data-context"></script>
-    <script src="https://cdn.jsdelivr.net/npm/data-context-binding"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/data-context@2.0.0-beta.3/index.min.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/data-context-binding@2.0.0-beta.1/index.min.js"></script>
     <!-- STEP 2. Add the data to a container with the ID 'data'. Its contents will be read automatically. -->
     <script id="data" type="application/json">
         {
@@ -149,6 +149,8 @@ hello-world.html:
 </body>
 </html>
 ```
+
+Here is also a [DEMO](https://manuel-lohmus.github.io/data-context-binding/demo.html)
 
 ## References
 
