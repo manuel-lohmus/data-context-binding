@@ -12,7 +12,7 @@
   - [**References**](#references)
   - [**License**](#license)
     
-  </div>
+</div>
 </div>
 </div>
  
@@ -23,7 +23,7 @@
 
 Simple and lightweight solution for binding data to DOM elements.<br>
 This manual is also available in [HTML5](https://manuel-lohmus.github.io/data-context-binding/README.html).<br>
-[![npm-version](https://img.jsdelivr.com/badgen.net/npm/v/data-context-binding)](https://www.npmjs.com/package/data-context-binding)
+[![npm-version](https://badgen.net/npm/v/data-context-binding)](https://www.npmjs.com/package/data-context-binding)
 
 ## Introduction
 
