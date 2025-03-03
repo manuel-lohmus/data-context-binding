@@ -369,6 +369,5 @@ FodyWeavers.xsd
 /browser - 06.11.2023.js
 /.gitattributes
 /.gitignore
-/browser_test.bat
 /nuget.config
 /.gitignore

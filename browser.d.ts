@@ -32,6 +32,8 @@ declare module 'data-context-binding' {
         value(event: object): boolean;
         check(event: object): boolean;
         hidden(event: object): boolean;
+        enabled(event: object): boolean;
+        disabled(event: object): boolean;
         input(event: object): boolean;
         input_checkbox(event: object): boolean;
         input_color(event: object): boolean;

@@ -22,8 +22,7 @@
 # data-context-binding
 
 Simple and lightweight solution for binding data to DOM elements.<br>
-This manual is also available in [HTML5](https://manuel-lohmus.github.io/data-context-binding/README.html).<br>
-[![npm-version](https://badgen.net/npm/v/data-context-binding)](https://www.npmjs.com/package/data-context-binding)
+This manual is also available in [HTML5](https://manuel-lohmus.github.io/data-context-binding/README.html).
 
 ## Introduction
 
@@ -86,12 +85,12 @@ This example demonstrates a simple and effective way to bind data to DOM element
     <title>data-context-binding</title>
     <!-- STEP 1. Import the modules 'data-context' and 'data-context-binding'.
         Import for an HTML page hosted on the server. -->
-    <!--<script src="../datacontext.js"></script>-->
-    <!--<script src="../index.js"></script>-->
+    <!--<script src="./datacontext.js"></script>-->
+    <!--<script src="./browser.js"></script>-->
     <!-- STEP 1. Import the modules 'data-context' and 'data-context-binding'.
         Import for a standalone HTML page. -->
-    <script async src="https://cdn.jsdelivr.net/npm/data-context@2.0.0-beta.3/index.min.js"></script>
-    <script async src="https://cdn.jsdelivr.net/npm/data-context-binding@2.0.0-beta.1/index.min.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/data-context"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/data-context-binding"></script>
     <!-- STEP 2. Add the data to a container with the ID 'data'. Its contents will be read automatically. -->
     <script id="data" type="application/json">
         {

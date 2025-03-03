@@ -1,7 +1,7 @@
 {
   "name": "data-context-binding",
   "description": "Simple and lightweight solution for binding data to DOM elements.",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0-beta.2",
   "license": "MIT",
   "keywords": [
     "data",
@@ -25,12 +25,13 @@
     "html5",
     "render"
   ],
-  "author": "Manuel Lõhmus <manuel@hauss.ee>",
+  "author": "Manuel Lõhmus",
+  "browser": "browser.js",
   "main": "index.js",
-  "browser": "index.js",
-  "types": "index.d.ts",
+  "types": "browser.d.ts",
   "files": [
-    "index.d.ts",
+    "browser.d.ts",
+    "browser.js",
     "index.js",
     "index.test.html",
     "LICENSE",

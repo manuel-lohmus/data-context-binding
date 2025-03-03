@@ -101,6 +101,30 @@
                     }
                 },
 
+                isChanged: {
+                    configurable: false, enumerable: false,
+
+                    get: function () { return Boolean(this._isModified || this._modified.length); }
+                },
+
+                resetChanges: {
+                    writable: true, configurable: false, enumerable: false,
+
+                    value: function _resetChanges() {
+
+                        for (var k of this._modified) {
+
+                            if (this[k] && "undefined" !== typeof this[k].resetChanges) {
+
+                                this[k].resetChanges();
+                            }
+                        }
+
+                        if ("undefined" !== typeof this._isModified) { this._isModified = false; }
+                        if ("undefined" !== typeof this._modified) { this._modified.length = 0; }
+                    }
+                },
+
                 // EventEmitter
                 _events: { value: {}, writable: true, configurable: false, enumerable: false },
 
@@ -157,7 +181,7 @@
                                 params[0].propertyPath.unshift(propertyName);
                             }
 
-                            ret = parent.emitToParent(eventName, ...params) || ret;
+                            ret = parent.emitToParent(propertyName, ...params) || ret;
                         }
 
                         return ret;
@@ -409,7 +433,7 @@
             }
 
             var it = new _it(text);
-            var _this = isGlobal(this) ? undefined : this;
+            var _this = isGlobal(this) || this === createDataContext ? undefined : this;
             var isOverwriting = Boolean(_this);
 
             if (typeof reviver === "object") {
@@ -745,6 +769,11 @@
 
                         meta = _whitespace();
 
+                        if (it.current === '}') {
+
+                            break;
+                        }
+
                         var k = _key();
 
                         _whitespace();
@@ -841,12 +870,18 @@
 
                         meta = _whitespace();
 
+                        if (it.current === ']') {
+
+                            break;
+                        }
+
                         // for update
                         var index = _index();
 
                         if (isOverwriting && index === undefined) {
 
-                            throw "Overwriting data -> index must be.";
+                            //throw "Overwriting data -> index must be.";
+                            index = i;
                         }
 
                         _whitespace();
@@ -984,7 +1019,7 @@
             }
 
             var it = new _it(textOrReadStream);
-            var _this = isGlobal(this) ? undefined : this;
+            var _this = isGlobal(this) || this === createDataContext ? undefined : this;
             var isOverwriting = Boolean(_this);
 
             if (typeof reviver === "object") {
@@ -1806,7 +1841,8 @@
 
                                         if (isOverwriting && index === undefined) {
 
-                                            throw "Overwriting data -> index must be.";
+                                            //throw "Overwriting data -> index must be.";
+                                            index = i;
                                         }
 
                                         _whitespace(function () {
@@ -2142,6 +2178,18 @@
                 if (value[key] && !Array.isArray(value[key])) {
 
                     value[key] = [value[key]];
+
+                    // remove from Ienumerable -metadata
+                    if (value.propertyIsEnumerable(key)) {
+
+                        Object.defineProperty(value, key, { enumerable: false });
+
+                        if (value._modified.includes(key)) {
+
+                            const index = value._modified.indexOf(key);
+                            if (index > -1) { value._modified.splice(index, 1); }
+                        }
+                    }
                 }
 
                 write();
