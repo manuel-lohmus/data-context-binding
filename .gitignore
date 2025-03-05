@@ -364,7 +364,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /browser - 1.0.4.js
 /data-context-binding.njsproj
-/browser.js
 /.gitignore
 /browser - 06.11.2023.js
 /.gitattributes
