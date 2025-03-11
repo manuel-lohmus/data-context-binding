@@ -18,10 +18,10 @@
         test("Startup               ", { skip: false }, (check, done) => {
         var datacontext = DB();
         document.body.innerHTML = "";
-        check(typeof document.body.parentElement.dataContext).mustBe("object");
-        check(document.body.parentElement.dataContext._isDataContext).mustBe(true);
-        check(document.body.parentElement.dataContext.stringifyChanges()).mustBe(undefined);
-        check(DC.stringify(document.body.parentElement.dataContext)).mustBe('[{"nr":123},{"nr":456},{"nr":789}]');
+        check(typeof document.body.parentElement.datacontext).mustBe("object");
+        check(document.body.parentElement.datacontext._isDataContext).mustBe(true);
+        check(document.body.parentElement.datacontext.stringifyChanges()).mustBe('[]');
+        check(DC.stringify(document.body.parentElement.datacontext)).mustBe('[{"nr":123},{"nr":456},{"nr":789}]');
         done();
         });
         test("Default innerHTMLBind ", { skip: false }, (check) => {

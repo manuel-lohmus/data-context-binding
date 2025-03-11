@@ -26,6 +26,8 @@
 
             innerHTML: { value: innerHTMLBind, writable: true, configurable: false, enumerable: false },
             value: { value: valueBind, writable: true, configurable: false, enumerable: false },
+            getvalue: { value: getValueBind, writable: true, configurable: false, enumerable: false },
+            setvalue: { value: setValueBind, writable: true, configurable: false, enumerable: false },
             check: { value: checkBind, writable: true, configurable: false, enumerable: false },
             hidden: { value: hiddenBind, writable: true, configurable: false, enumerable: false },
             enabled: { value: enabledBind, writable: true, configurable: false, enumerable: false },
@@ -193,24 +195,42 @@
                 var templateElement = null;
 
                 try { templateElement = element.querySelector(selectors) || document.querySelector(selectors); }
-                catch {
+                catch { templateElement = null; }
 
-                    fetch(selectors).then(function (res) {
 
-                        res.text().then(function (strHTML) {
-
-                            templateElement = document.createElement("template");
-                            templateElement.innerHTML = strHTML;
-                            bindTemplate();
-                        });
-                    });
-                }
-
-                if (!templateElement) { return; }
+                if (!templateElement) { return fetchContent(); }
 
                 bindTemplate();
 
                 return;
+
+                function fetchContent() {
+
+                    fetch(selectors).then(function (res) {
+
+                        res.text().then(function (textContent) {
+
+                            templateElement = document.createElement("template");
+                            selectors.endsWith('.html')
+                                ? templateElement.innerHTML = textContent
+                                : templateElement.innerHTML = '<div>' + encodeHTML(textContent) + '</div>';
+                            bindTemplate();
+                        });
+                    });
+
+                    function encodeHTML(str) {
+
+                        return str.replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;')
+                            .replace(/ /g, "&nbsp;")
+                            .replace(/\r\n/g, '<br>') // Windows-style newlines
+                            .replace(/\r/g, '<br>')   // Old Mac-style newlines
+                            .replace(/\n/g, '<br>');  // Unix-style newlines
+                    }
+                }
 
                 function bindTemplate() {
 
@@ -785,6 +805,47 @@
             }
 
             this.value = event.newValue;
+
+            // Init
+            if (event.eventName === "bind") {
+
+                this.onchange = function () { this.contextValue(this.value); };
+                this.onkeydown = function (ev) { if (ev.keyCode === 27) { this.value = his.contextValue(); } };
+            }
+
+            // I am alive!
+            return true;
+        }
+        function getValueBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                this.onchange = null;
+                this.onkeydown = null;
+
+                this.value = '';
+
+                // I am dead!
+                return false;
+            }
+
+            this.value = event.newValue;
+
+            // I am alive!
+            return true;
+        }
+        function setValueBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                this.onchange = null;
+                this.onkeydown = null;
+
+                this.value = '';
+
+                // I am dead!
+                return false;
+            }
 
             // Init
             if (event.eventName === "bind") {

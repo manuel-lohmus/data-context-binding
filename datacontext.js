@@ -7,6 +7,8 @@
 
     exportModule("data-context", function factory() {
 
+        //var isDebug = true;
+        var ignoreMetadata = false;
 
         /**
          * Create a new proxy object with the same structure as the original object. 
@@ -181,7 +183,11 @@
                                 params[0].propertyPath.unshift(propertyName);
                             }
 
-                            ret = parent.emitToParent(propertyName, ...params) || ret;
+                            if (eventName === '-' || eventName === '-change') {
+
+                                ret = parent.emitToParent(eventName, ...params) || ret;
+                            }
+                            else { ret = parent.emitToParent(propertyName, ...params) || ret; }
                         }
 
                         return ret;
@@ -269,6 +275,58 @@
          * @returns {boolean} Returns true if the object is global.
          */
         function isGlobal(g) { return g === (typeof globalThis !== 'undefined' ? globalThis : global || self); }
+
+        /**
+         * Sync data objects
+         * @param {any} target
+         * @param {any} source
+         * @returns {any}
+         */
+        function syncData(target, source, removeUnusedKeys = true) {
+
+            if (!target && typeof target !== "object") { target = {}; }
+            if (Array.isArray(source) && !Array.isArray(target) && target !== null) { target = []; }
+
+            if (source && typeof source === "object") {
+
+                var keys = Object.keys(source);
+                Object.keys(source).forEach(function (k) { keys.push('-metadata-' + k); });
+                keys.push('-metadata');
+
+                for (var k of keys) {
+
+                    if (!source.hasOwnProperty(k)) continue;
+
+                    if (typeof source[k] === "function" || k === "__proto__" || k === "constructor") { continue; }
+
+                    if (!source[k] || typeof source[k] !== "object") {
+
+                        target[k] = source[k];
+                    }
+                    else {
+
+                        target[k] = syncData(target[k], source[k], removeUnusedKeys);
+
+                        if (k.startsWith('-metadata')) {
+                            Object.defineProperty(target, k, { enumerable: false });
+                        }
+
+                    }
+                }
+
+                if (removeUnusedKeys) {
+
+                    Object.keys(target).forEach(function (k) {
+
+                        if (!keys.includes(k)) { delete target[k]; }
+                    });
+
+                    if (Array.isArray(target)) { target.length = source.length; }
+                }
+            }
+
+            return target;
+        }
 
         //#region *** Handler ***
 
@@ -617,7 +675,7 @@
 
             function _setMetadata(obj, metadata, key = '') {
 
-                if (createDataContext.IgnoreMetadata) { return; }
+                if (ignoreMetadata) { return; }
 
                 if (metadata && metadata.length && obj && typeof obj === 'object') {
 
@@ -771,6 +829,14 @@
 
                         if (it.current === '}') {
 
+                            if (isOverwriting && _typeof(_this) === 'object') {
+
+                                Object.keys(_this).forEach(function (k) {
+
+                                    delete _this[k];
+                                });
+                            }
+
                             break;
                         }
 
@@ -815,6 +881,11 @@
 
                                 _setMetadata(obj, meta, k);
                             }
+                        }
+
+                        else {
+
+                            delete obj[k];
                         }
                     }
 
@@ -872,6 +943,11 @@
 
                         if (it.current === ']') {
 
+                            if (isOverwriting && _typeof(_this) === 'array') {
+
+                                _this.length = 0;
+                            }
+
                             break;
                         }
 
@@ -880,7 +956,11 @@
 
                         if (isOverwriting && index === undefined) {
 
-                            //throw "Overwriting data -> index must be.";
+                            if (typeof isDebug === 'boolean' && isDebug) {
+
+                                throw "Overwriting data -> array index must be.";
+                            }
+                            console.warn("Overwriting data -> array index must be.");
                             index = i;
                         }
 
@@ -998,1018 +1078,6 @@
 
                     return null;
                 }
-            }
-        }
-
-        /**
-         * Parse a string to an object, asynchronously.
-         * @param {any} textOrReadStream Input value.
-         * @param {any} reviver Reviver.
-         * @param {any} callback Callback. Optional.
-         * @returns {Promise} Returns a promise.
-         */
-        function parsePromise(textOrReadStream, reviver, callback = null) {
-
-            if (textOrReadStream !== null
-                && typeof textOrReadStream !== "string"
-                && textOrReadStream && typeof textOrReadStream !== "number"
-                && !_isStream(textOrReadStream)) {
-
-                return;
-            }
-
-            var it = new _it(textOrReadStream);
-            var _this = isGlobal(this) || this === createDataContext ? undefined : this;
-            var isOverwriting = Boolean(_this);
-
-            if (typeof reviver === "object") {
-
-                _this = reviver;
-
-                if (_this?._isDataContext) {
-
-                    reviver = createDataContext;
-                }
-            }
-
-            if (reviver === createDataContext) {
-
-                reviver = function _set(k, v) {
-
-                    if (v?._isDataContext) {
-
-                        return v;
-                    }
-
-                    return createDataContext(v, k, this);
-                };
-            }
-
-            return new Promise(function (resolve, reject) {
-
-                try {
-
-                    it.next(function () {
-
-                        _whitespace(function (meta) {
-
-                            _value(_this, function (value) {
-
-                                _setMetadata(value, meta);
-
-                                if (reviver && reviver.name === "_set") {
-
-                                    value = reviver.call(
-                                        undefined,
-                                        undefined,
-                                        value
-                                    );
-                                }
-
-                                else if (reviver) {
-
-                                    value = reviver.call(
-                                        { "": value },
-                                        "",
-                                        value
-                                    );
-                                }
-
-                                resolve(value);
-
-                                if (typeof callback === "function") {
-
-                                    callback(null, value);
-                                }
-                            });
-                        });
-                    });
-                }
-                catch (e) {
-
-                    var err = "[ ERROR ] " + e
-                        + " In parsing position: " + it.position + " '" + it.current + "' => "
-                        + it.text.substring(it.position < 10 ? 0 : it.position - 10, it.position + 10)
-                            .replace(/\r/g, "\\r")
-                            .replace(/\n/g, "\\n");
-
-                    reject(err);
-
-                    if (typeof callback === "function") {
-
-                        callback(err);
-                    }
-                }
-            });
-
-
-            function _error(err) {
-
-                reject(err);
-
-                if (typeof callback === "function") {
-
-                    callback(err);
-                }
-            }
-
-            function _isStream(obj) {
-
-                return obj
-                    && typeof obj === "object"
-                    && typeof obj.readable === "boolean";
-            }
-
-            function _it(text) {
-
-                this.is = _is;
-                this.next = _next;
-                this.isInfiniteLoop = _isInfiniteLoop;
-                this.setPosition = _setPosition;
-
-                var currentPosition = 0;
-
-                if (_isStream(text)) {
-
-                    this.readStream = text;
-                    this.text = '';
-                    this.current = '';
-                    this.following = '';
-                    this.position = 0;
-                    this.endCallback = null;
-
-                    this.readStream.once("end", function () {
-
-                        if (it.endCallback) {
-
-                            it.endCallback();
-                        }
-                    })
-                }
-                else {
-
-                    this.readStream = null;
-                    this.text = text + '';
-                    this.current = '';
-                    this.following = this.text.charAt(0);
-                    this.position = 0;
-                }
-
-
-                function _isInfiniteLoop() {
-
-                    if (currentPosition !== this.position) {
-
-                        currentPosition = this.position;
-
-                        return false;
-                    }
-
-                    throw "Incorrect entry.";
-                }
-
-                function _next(cb) {
-
-                    if (it.readStream?.readable
-                        && (it.text.charAt(it.position) === '' || it.text.charAt(it.position + 1) === '')) {
-
-                        return _readStreamText(_next.bind(it, cb));
-                    }
-                    else {
-
-                        it.current = it.text.charAt(it.position);
-                        it.position++;
-                        it.following = it.text.charAt(it.position);
-
-                        return cb();
-                    }
-                }
-
-                function _readStreamText(cb) {
-
-                    var str = it.readStream.read();
-
-                    if (str === null && it.readStream.readable) {
-
-                        it.readStream.once("readable", function () {
-
-                            it.endCallback = cb;
-
-                            return _readStreamText(cb);
-                        });
-                    }
-                    else {
-
-                        it.text += str;
-
-                        if (it.position > 1 && it.position < it.text.length && cb.name === 'bound _next') {
-
-                            it.text = it.text.substring(it.position - 1);
-                            it.position = 1;
-                            currentPosition = 0;
-                        }
-
-                        return cb();
-                    }
-                }
-
-                function _is(str, cb) {
-
-                    if (it.readStream && it.text.length - it.position < str.length) {
-
-                        return _readStreamText(_is.bind(it, str, cb));
-                    }
-                    else {
-
-                        return check();
-                    }
-
-                    function check() {
-
-                        if (it.text.substring(it.position - 1, it.position - 1 + str.length) === str) {
-
-                            it.position = it.position + str.length;
-                            it.current = it.text.charAt(it.position - 1);
-                            it.following = it.text.charAt(it.position);
-
-                            return cb(true);
-                        }
-
-                        return cb(false);
-                    }
-                }
-
-                function _setPosition(pos) {
-
-                    this.position = pos;
-                    this.current = this.text.charAt(pos - 1);
-                    this.following = this.text.charAt(pos);
-                }
-            }
-
-            function _get(val, def) {
-
-                if (it.current === '\r' && it.following === '\r'
-                    || _typeof(val) !== _typeof(def)) {
-
-                    return def;
-                }
-
-                return val;
-            }
-
-            function _whitespace(cb) {
-
-                var meta = [];
-                return whitespace(function () {
-
-                    return _metadata(addMetadata);
-                });
-
-                function whitespace(cb) {
-
-                    if (it.current === '\n'
-                        || it.current === '\r'
-                        || it.current === '\t'
-                        || it.current === '\u0020') {
-
-                        return it.next(whitespace.bind(this, cb));
-                    }
-                    else {
-
-                        return cb();
-                    }
-                }
-
-                function addMetadata(metadata) {
-
-                    if (metadata) {
-
-                        meta.push(metadata);
-
-                        return whitespace(function () {
-
-                            return _metadata(addMetadata);
-                        });
-                    }
-
-                    return cb(meta);
-                }
-            }
-
-            function _metadata(cb) {
-
-                if (it.current === '/' && it.following === '*') {
-
-                    var metadata = '';
-
-                    return it.next(it.next.bind(it, readMetadata));
-
-
-                    function readMetadata() {
-
-                        if (it.current !== '*' && it.following !== '/') {
-
-                            metadata += it.current;
-                            return it.next(readMetadata);
-                        }
-                        else {
-
-                            return it.next(it.next.bind(it, function () {
-
-                                return cb(metadata);
-                            }));
-                        }
-                    }
-                }
-
-                return cb();
-            }
-
-            function _setMetadata(obj, metadata, key = '') {
-
-                if (createDataContext.IgnoreMetadata) { return; }
-
-                if (metadata && metadata.length && obj && typeof obj === 'object') {
-
-                    key = key + "";
-
-                    Object.defineProperty(
-                        obj,
-                        '-metadata' + (key ? '-' + key : ''),
-                        {
-                            value: metadata,
-                            writable: true,
-                            configurable: true,
-                            enumerable: false
-                        }
-                    );
-                }
-            }
-
-            function _value(val, cb) {
-
-                return _object(val, function (obj) {
-
-                    if (obj !== undefined) { return cb(obj); }
-
-                    return _array(val, function (arr) {
-
-                        if (arr !== undefined) { return cb(arr); }
-
-                        return _string(function (str) {
-
-                            if (str !== undefined) { return cb(str); }
-
-                            return _true(function (t) {
-
-                                if (t !== undefined) { return cb(t); }
-
-                                return _false(function (f) {
-
-                                    if (f !== undefined) { return cb(f); }
-
-                                    return _null(function (n) {
-
-                                        if (n !== undefined) { return cb(n); }
-
-                                        return _number(function (num) {
-
-                                            if (num !== undefined) { return cb(num); }
-
-                                            return cb();
-                                        });
-                                    });
-                                });
-                            });
-                        });
-                    });
-                });
-            }
-
-            function _string(cb) {
-
-                _whitespace(function (meta) {
-
-                    var str = '';
-
-                    if (it.current === '"') {
-
-                        it.next(function () {
-
-                            //if (!it.current) { return; }
-
-                            addLetter();
-                        });
-                    }
-
-                    else {
-
-                        Promise.resolve(1)
-                            .then(function () { cb(); })
-                            .catch(_error);
-                    }
-
-
-                    function addLetter() {
-
-                        if (it.current && it.current !== '"') {
-
-                            str += it.current;
-                            it.next(addLetter);
-                        }
-
-                        else if (it.current === '"') {
-
-                            it.next(function () {
-
-                                Promise.resolve(1)
-                                    .then(function () { cb(str); })
-                                    .catch(_error);
-                            });
-                        }
-
-                        else {
-
-                            throw "Incorrect string separator.";
-                        }
-                    }
-                });
-            }
-
-            function _number(cb) {
-
-                _whitespace(function (meta) {
-
-                    var str = "";
-                    _negative(function (negative) {
-
-                        str += negative;
-
-                        if (it.current === "0") {
-
-                            str += "0";
-
-                            it.next(function () {
-
-                                if (it.current.toLowerCase() === "x") {
-
-                                    str += "x";
-
-                                    hex(cb);
-                                }
-
-                                else {
-
-                                    fraction(cb);
-                                }
-                            });
-                        }
-                        else {
-
-                            return _digit(function (digit) {
-
-                                str += digit;
-
-                                fraction(cb);
-                            });
-                        }
-
-
-                        function hex(cb) {
-
-                            it.next(function () {
-
-                                _hex(function (hex) {
-
-                                    str += hex;
-                                    ret(cb);
-                                });
-                            });
-                        }
-
-                        function fraction(cb) {
-
-                            if (it.current === ".") {
-
-                                str += ".";
-
-                                it.next(function () {
-
-                                    _digit(function (digit) {
-
-                                        str += digit;
-                                        exponent(cb);
-                                    });
-                                });
-                            }
-
-                            else {
-
-                                ret(cb);
-                            }
-                        }
-
-                        function exponent(cb) {
-
-                            if (it.current && "eE".includes(it.current)) {
-
-                                str += "e";
-
-                                it.next(function () {
-
-                                    _negative(function (negative) {
-
-                                        str += negative;
-
-                                        _positive(function (positive) {
-
-                                            str += positive;
-
-                                            _digit(function (digit) {
-
-                                                str += digit;
-
-                                                ret(cb);
-                                            });
-                                        });
-                                    });
-                                });
-                            }
-
-                            else {
-
-                                ret(cb);
-                            }
-                        }
-
-                        function ret(cb) {
-
-                            if (!str) {
-
-                                Promise.resolve(1)
-                                    .then(function () { cb(); })
-                                    .catch(_error);
-                            }
-
-                            else {
-
-                                str = JSON.parse(str);
-
-                                Promise.resolve(1)
-                                    .then(function () { cb(str); })
-                                    .catch(_error);
-                            }
-                        }
-                    });
-                });
-            }
-
-            function _negative(cb) {
-
-                if (it.current === '-') {
-
-                    it.next(function () { return cb('-'); });
-                }
-
-                else {
-
-                    cb('');
-                }
-            }
-
-            function _positive(cb) {
-
-                if (it.current === '+') {
-
-                    it.next(function () { return cb('+'); });
-                }
-
-                else {
-
-                    cb('');
-                }
-            }
-
-            function _hex(cb) {
-
-                var str = '';
-
-                add();
-
-
-                function add() {
-
-                    if (it.current && "0123456789aAbBcCdDeEfF".includes(it.current)) {
-
-                        str += it.current;
-                        it.next(add);
-                    }
-
-                    else {
-
-                        cb(str);
-                    }
-                }
-            }
-
-            function _digit(cb) {
-
-                var str = '';
-
-                add();
-
-
-                function add() {
-
-                    if (it.current && "0123456789".includes(it.current)) {
-
-                        str += it.current;
-                        it.next(add);
-                    }
-
-                    else {
-
-                        cb(str);
-                    }
-                }
-            }
-
-            function _object(val, cb) {
-
-                _whitespace(function (meta) {
-
-                    if (it.current === '{') {
-
-                        it.next(function () {
-
-                            var obj = _get(val, {});
-
-                            _setMetadata(obj, meta);
-
-                            readKeyVal();
-
-
-                            function readKeyVal() {
-
-                                if (it.current !== '}' && !it.isInfiniteLoop()) {
-
-                                    readKey();
-                                }
-
-                                else if (it.current === '}') {
-
-                                    it.next(function () {
-
-                                        Promise.resolve(1)
-                                            .then(function () { cb(obj); })
-                                            .catch(_error);
-                                    });
-                                }
-
-                                else {
-
-                                    Promise.resolve(1)
-                                        .then(function () { cb(obj); })
-                                        .catch(_error);
-                                }
-                            }
-
-                            function readKey() {
-
-                                _whitespace(function (meta) {
-
-                                    _key(function (k) {
-
-                                        _whitespace(function () {
-
-                                            readVal(k, meta);
-                                        });
-                                    });
-                                });
-                            }
-
-                            function readVal(k, meta) {
-
-                                _value(obj[k], function (v) {
-
-                                    _whitespace(function () {
-
-                                        if (it.current !== ',' && it.current !== '}') {
-
-                                            throw "Incorrect object separator.";
-                                        }
-
-                                        if (it.current === ',') {
-
-                                            it.next(function () {
-
-                                                set(k, v, meta);
-                                            });
-                                        }
-
-                                        else {
-
-                                            set(k, v, meta);
-                                        }
-                                    });
-                                });
-                            }
-
-                            function set(k, v, meta) {
-
-                                if (typeof k === 'string' && v !== undefined) {
-
-                                    if (reviver) {
-
-                                        Reflect.set(
-                                            obj,
-                                            k,
-                                            reviver.call(obj, k, v)
-                                        );
-                                    }
-                                    else {
-
-                                        obj[k] = v;
-                                    }
-
-                                    if (typeof obj[k] === 'object') {
-
-                                        _setMetadata(obj[k], meta);
-                                    }
-                                    else {
-
-                                        _setMetadata(obj, meta, k);
-                                    }
-
-                                    Promise.resolve(1)
-                                        .then(function () { readKeyVal(); })
-                                        .catch(_error);
-                                }
-                            }
-                        });
-                    }
-
-                    else {
-
-                        Promise.resolve(1)
-                            .then(function () { cb(); })
-                            .catch(_error);
-                    }
-                });
-            }
-
-            function _key(cb) {
-
-                _whitespace(function () {
-
-                    if (it.current === ":") {
-
-                        throw "Invalid object key.";
-                    }
-
-                    _string(function (key) {
-
-                        _whitespace(function () {
-
-                            if (typeof key !== "string" || it.current !== ":") {
-
-                                throw "Invalid object key.";
-                            }
-                            else {
-
-                                it.next(function () {
-
-                                    Promise.resolve(1)
-                                        .then(function () { cb(key); })
-                                        .catch(_error);
-                                });
-                            }
-                        });
-                    });
-                });
-            }
-
-            function _array(val, cb) {
-
-                _whitespace(function (meta) {
-
-                    if (it.current === '[') {
-
-                        it.next(function () {
-
-                            var arr = _get(val, []);
-
-                            _setMetadata(arr, meta);
-
-                            var i = 0;
-
-                            readIndexVal();
-
-
-                            function readIndexVal() {
-
-                                if (it.current !== ']' && !it.isInfiniteLoop()) {
-
-                                    readIndex();
-                                }
-
-                                else if (it.current === ']') {
-
-                                    it.next(function () {
-
-                                        Promise.resolve(1)
-                                            .then(function () { cb(arr); })
-                                            .catch(_error);
-                                    });
-                                }
-
-                                else {
-
-                                    Promise.resolve(1)
-                                        .then(function () { cb(arr); })
-                                        .catch(_error);
-                                }
-                            }
-
-                            function readIndex() {
-
-                                _whitespace(function (meta) {
-
-                                    // for update
-                                    _index(function (index) {
-
-                                        if (isOverwriting && index === undefined) {
-
-                                            //throw "Overwriting data -> index must be.";
-                                            index = i;
-                                        }
-
-                                        _whitespace(function () {
-
-                                            readVal(index, meta);
-                                        });
-                                    });
-                                });
-                            }
-
-                            function readVal(index, meta) {
-
-                                _value(arr[typeof index === "number" && index || i], function (v) {
-
-                                    _whitespace(function () {
-
-                                        if (it.current !== ',' && it.current !== ']') {
-
-                                            throw "Incorrect array separator.";
-                                        }
-
-                                        if (it.current === ',') {
-
-                                            it.next(function () {
-
-                                                set(index, v, meta);
-                                            });
-                                        }
-
-                                        else {
-
-                                            set(index, v, meta);
-                                        }
-                                    });
-                                });
-                            }
-
-                            function set(index, v, meta) {
-
-                                if (reviver) {
-
-                                    v = reviver.call(arr, String(typeof index === "number" && index || i), v);
-                                }
-
-                                if (v === undefined && typeof index === "number" && index > -1) {
-
-                                    arr.splice(index, 1);
-                                }
-                                else if (typeof index === "number" && arr[index] !== undefined) {
-
-                                    arr[index] = v;
-                                }
-                                else {
-
-                                    arr.push(v);
-                                }
-
-                                if (typeof arr[typeof index === "number" && index || i] === 'object') {
-
-                                    _setMetadata(arr[typeof index === "number" && index || i], meta);
-                                }
-                                else {
-
-                                    _setMetadata(arr, meta, typeof index === "number" && index || i);
-                                }
-
-                                i++;
-
-                                Promise.resolve(1)
-                                    .then(function () { readIndexVal(); })
-                                    .catch(_error);
-                            }
-                        });
-                    }
-
-                    else {
-
-                        Promise.resolve(1)
-                            .then(function () { cb(); })
-                            .catch(_error);
-                    }
-                });
-            }
-
-            function _index(cb) {
-
-                _whitespace(function () {
-
-                    if (it.current === ":") {
-
-                        throw "Invalid array index.";
-                    }
-
-                    var pos = it.position;
-
-                    _number(function (nr) {
-
-                        _whitespace(function () {
-
-                            if (typeof nr !== "number" && it.current === ":") {
-
-                                throw "Invalid array index.";
-                            }
-
-                            if (typeof nr === "number" && it.current === ":") {
-
-                                it.next(function () {
-
-                                    Promise.resolve(1)
-                                        .then(function () { cb(nr); })
-                                        .catch(_error);
-                                });
-                            }
-
-                            else {
-
-                                it.setPosition(pos);
-
-                                Promise.resolve(1)
-                                    .then(function () { cb(); })
-                                    .catch(_error);
-                            }
-                        });
-                    });
-                });
-            }
-
-            function _true(cb) {
-
-                _whitespace(function () {
-
-                    it.is('true', function (is) {
-
-                        Promise.resolve(1)
-                            .then(function () { cb(is ? true : undefined); })
-                            .catch(_error);
-                    });
-                });
-            }
-
-            function _false(cb) {
-
-                _whitespace(function () {
-
-                    it.is('false', function (is) {
-
-                        Promise.resolve(1)
-                            .then(function () { cb(is ? false : undefined); })
-                            .catch(_error);
-                    });
-                });
-            }
-
-            function _null(cb) {
-
-                _whitespace(function () {
-
-                    _whitespace(function () {
-
-                        it.is('null', function (is) {
-
-                            Promise.resolve(1)
-                                .then(function () { cb(is ? null : undefined); })
-                                .catch(_error);
-                        });
-                    });
-                });
             }
         }
 
@@ -2167,7 +1235,7 @@
 
             function _metadata(value, level, key = "", cb) {
 
-                if (createDataContext.IgnoreMetadata || !value) { return cb(); }
+                if (ignoreMetadata || !value) { return cb(); }
 
                 var arr = [];
                 var i = -1;
@@ -2360,13 +1428,6 @@
                         // write emty object
                         if (!keys.length) {
 
-                            if (modifiedData) {
-
-                                cb();
-
-                                return true;
-                            }
-
                             _write(startChar + endChar, cb);
 
                             return true;
@@ -2548,11 +1609,208 @@
 
         //#endregion
 
-        createDataContext.createDataContext = createDataContext;
-        createDataContext.ignoreMetadata = false;
-        createDataContext.parse = parse;
-        createDataContext.parsePromise = parsePromise;
-        createDataContext.stringify = stringify;
+        // is node.js
+        if (typeof exports === 'object' && typeof module !== 'undefined') {
+
+            var path = require('path'), fs = require('fs'), enableFileReadWrite = true;
+
+            /**
+             * 
+             * @param {string} filePath 
+             * @param {(event:Event)=>void} onDataChange
+             * @param {(event:Event)=>void} onFileChange
+             * @param {any} data Default {}
+             * @returns Proxy
+             * 
+             * @typedef {object} Event Event object
+             * @property {string} strChanges
+             * @property {string} strJson
+             * @property {Proxy} datacontext
+             */
+            function watchJsonFile({
+                filePath = '',
+                data = null,
+                removeUnusedKeys = true,
+                onDataChange = null,
+                onFileChange = null
+            } = {}) {
+
+                if (!filePath.endsWith('.json')) {
+
+                    throw new Error('The `filePath` argument of the `watchJsonFile` function must end with the file extension `.json`.');
+                }
+
+                filePath = resolvePath(filePath);
+
+                var isInitData = !fs.existsSync(filePath),
+                    isFileProcessing = false,
+                    writeTimeout;
+
+                if (!data) { data = createDataContext({}); }
+                if (!data._isDataContext) { data = createDataContext(data); }
+
+                fs.watchFile(filePath, (curr, prev) => { readFile(); });
+
+                data.on('-change', (event) => {
+
+                    writeFile();
+
+                    // I am alive.
+                    return true;
+                });
+
+                if (isInitData) { Promise.resolve().then(writeFile); }
+                else { readFileSync(); }
+
+                return data;
+
+
+                function resolvePath(pathToFile) {
+
+                    var filePath = path.resolve(path.parse(process.argv[1]).dir.split("node_modules").shift(), pathToFile);
+
+                    if (!fs.existsSync(path.parse(filePath).dir)) {
+
+                        fs.mkdirSync(
+                            path.parse(filePath).dir,
+                            { recursive: true }
+                        );
+                    }
+                    return filePath;
+                }
+                function readFileSync() {
+
+                    if (!enableFileReadWrite) { return; }
+
+                    var str = fs.readFileSync(
+                        filePath,
+                        { encoding: 'utf8' }
+                    );
+                    loadData(str);
+                }
+                function readFile() {
+
+                    if (!enableFileReadWrite) { return; }
+
+                    fs.access(filePath, fs.constants.R_OK, (err) => {
+
+                        if (err) { return; }
+
+                        wait(read);
+                    });
+
+                    function read() {
+
+                        isFileProcessing = true;
+
+                        fs.readFile(
+                            filePath,
+                            { encoding: 'utf8', flag: 'r' },
+                            function (err, str) {
+
+                                if (err) { throw err; }
+
+                                loadData(str);
+
+                                isFileProcessing = false;
+                            });
+                    }
+                }
+                function loadData(str) {
+
+                    try {
+                        var obj = str ? createDataContext.parse(str) : {};
+                        data.resetChanges();
+                        data = syncData(data, obj, removeUnusedKeys);
+
+                        if (onFileChange) { setTimeout(onFileChange, 0, { datacontext: data }); }
+                    }
+                    catch (err) {
+
+                        if (typeof isDebug === 'boolean' && isDebug) {
+
+                            console.error(err);
+                        }
+                    }
+                }
+                function writeFile() {
+
+                    if (!enableFileReadWrite) { return; }
+
+                    clearTimeout(writeTimeout);
+
+                    writeTimeout = setTimeout(function () {
+
+                        wait(write);
+                    }, 500);
+
+
+                    function write() {
+
+                        if (!isInitData && !data.isChanged) { return; }
+
+                        isFileProcessing = true;
+
+                        var strChanges = data.stringifyChanges(null, 2),
+                            strJson = createDataContext.stringify(data, null, 2);
+
+                        isInitData = false;
+
+                        fs.writeFile(
+                            filePath,
+                            strJson,
+                            { encoding: 'utf8', flag: 'w', flush: true },
+                            (err) => {
+
+                                if (err) throw err;
+
+                                //data.resetChanges();
+                                isFileProcessing = false;
+
+                                if (onDataChange) {
+
+                                    setTimeout(onDataChange, 0, { strChanges, strJson, datacontext: data });
+                                }
+                            }
+                        );
+                    }
+                }
+                function wait(cb) {
+
+                    if (isFileProcessing) { return setTimeout(wait, 100, cb); }
+
+                    cb();
+                }
+            }
+
+            Object.defineProperties(createDataContext, {
+
+                watchJsonFile: { value: watchJsonFile, configurable: false, enumerable: false, writable: false },
+
+                enableFileReadWrite: {
+                    configurable: false, enumerable: false,
+                    get: function () { return enableFileReadWrite; },
+                    set: function (val) { enableFileReadWrite = Boolean(val); }
+                }
+            });
+        }
+
+        Object.defineProperties(createDataContext, {
+
+            createDataContext: { value: createDataContext, configurable: false, enumerable: false, writable: false },
+
+            syncData: { value: syncData, configurable: false, enumerable: false, writable: false },
+
+            parse: { value: parse, configurable: false, enumerable: false, writable: false },
+
+            stringify: { value: stringify, configurable: false, enumerable: false, writable: false },
+
+            ignoreMetadata: {
+                configurable: false, enumerable: false,
+                get: function () { return ignoreMetadata; },
+                set: function (val) { ignoreMetadata = Boolean(val); }
+            }
+        });
 
         return createDataContext;
     });
