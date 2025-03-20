@@ -7,7 +7,8 @@
 
     exportModule("data-context-binding", ["data-context"], function factory(DC) {
 
-        var { createDataContext, parse, stringify } = DC;
+        var globalScope = this,
+            { createDataContext, parse, stringify } = DC;
 
 
         //TODO [ x ] default bind ...
@@ -22,8 +23,8 @@
             bindAllElements: { value: bindAllElements, writable: false, configurable: false, enumerable: false },
             bindElement: { value: bindElement, writable: false, configurable: false, enumerable: false },
             bindingContext: { value: bindingContext, writable: false, configurable: false, enumerable: false },
-            change: { value: changeBind, writable: false, configurable: false, enumerable: false },
 
+            change: { value: changeBind, writable: false, configurable: false, enumerable: false },
             innerHTML: { value: innerHTMLBind, writable: true, configurable: false, enumerable: false },
             value: { value: valueBind, writable: true, configurable: false, enumerable: false },
             getvalue: { value: getValueBind, writable: true, configurable: false, enumerable: false },
@@ -103,7 +104,7 @@
 
             bindElement(rootElement, rebinding);
 
-            rootElement.querySelectorAll("[bind]:not(template>*),[onbind]:not(template>*),[onunbind]:not(template>*),[template]:not(template>*),[templates]:not(template>*),[rebinding]:not(template>*)")
+            rootElement.querySelectorAll("[bind]:not(template>*):not([link]>*),[onbind]:not(template>*):not([link]>*),[onunbind]:not(template>*):not([link]>*),[template]:not(template>*):not([link]>*),[templates]:not(template>*):not([link]>*),[rebinding]:not(template>*):not([link]>*),[link]:not(template>*):not([link]>*)")
                 .forEach(function (element) {
 
                     if (!element.contextValue || rebinding) {
@@ -137,7 +138,8 @@
                 !element?.attributes?.onbind &&
                 !element?.attributes?.onunbind &&
                 !element?.attributes?.bind &&
-                !element?.attributes?.rebinding
+                !element?.attributes?.rebinding &&
+                !element?.attributes?.link
             )) {
 
                 return;
@@ -152,6 +154,13 @@
             if (element.contextValue && !rebinding) { return; }
 
             if (element.bindingContext?.isActive) { element.bindingContext.isActive(false); } // for rebinding
+
+            if (element.attributes.link && !element.linked) {// if true then linked
+
+                _link(element.attributes.link.value);
+
+                return;
+            }
 
             var _bindingContext = bindingContext(element, rebinding);
 
@@ -173,6 +182,20 @@
 
             return;
 
+
+            function _link(path) {
+
+                var { CreateLink } = globalScope?.modules?.['ws-user'];
+
+                if (CreateLink) {
+
+                    element.wsLink = WsUser.CreateLink(path, element);
+                    element.datacontext = element.wsLink.datacontext;
+                    element.setAttribute("linked", path);
+                    element.removeAttribute("link");
+                    bindAllElements(element, rebinding);
+                }
+            }
 
             function _template(selectors, isMultiple = false) {
 
@@ -786,10 +809,11 @@
                 return false;
             }
 
-            this.innerHTML = event.newValue;
+            var val = this.contextValue();
+            this.innerHTML = val;
 
             // I am alive!
-            return event.newValue === undefined ? false : true;
+            return val === undefined ? false : true;
         }
         function valueBind(event) {
 
@@ -804,7 +828,7 @@
                 return false;
             }
 
-            this.value = event.newValue;
+            this.value = this.contextValue();
 
             // Init
             if (event.eventName === "bind") {
@@ -829,7 +853,7 @@
                 return false;
             }
 
-            this.value = event.newValue;
+            this.value = this.contextValue();
 
             // I am alive!
             return true;
@@ -851,7 +875,7 @@
             if (event.eventName === "bind") {
 
                 this.onchange = function () { this.contextValue(this.value); };
-                this.onkeydown = function (ev) { if (ev.keyCode === 27) { this.value = his.contextValue(); } };
+                this.onkeydown = function (ev) { if (ev.keyCode === 27) { this.value = this.contextValue(); } };
             }
 
             // I am alive!
@@ -867,8 +891,8 @@
                 return false;
             }
 
-            this.checked = event.newValue;
-            event.newValue ? this.setAttribute("checked", "") : this.removeAttribute("checked");
+            this.checked = this.contextValue();
+            this.checked ? this.setAttribute("checked", "") : this.removeAttribute("checked");
 
             // Init
             if (event.eventName === "bind") {
@@ -877,7 +901,7 @@
             }
 
             // I am alive!
-            return event.newValue === undefined ? false : true;
+            return this.contextValue() === undefined ? false : true;
         }
         function hiddenBind(event) {
 
@@ -887,10 +911,10 @@
                 return false;
             }
 
-            event.newValue ? this.setAttribute("hidden", "") : this.removeAttribute("hidden");
+            this.contextValue() ? this.setAttribute("hidden", "") : this.removeAttribute("hidden");
 
             // I am alive!
-            return event.newValue === undefined ? false : true;
+            return this.contextValue() === undefined ? false : true;
         }
         function changeBind(event) {
 
@@ -944,7 +968,7 @@
                 return false;
             }
 
-            if (event.newValue) { this.removeAttribute('disabled'); }
+            if (this.contextValue()) { this.removeAttribute('disabled'); }
             else { this.setAttribute('disabled', 'disabled'); }
 
             // I am alive!
@@ -960,7 +984,7 @@
                 return false;
             }
 
-            if (event.newValue) { this.setAttribute('disabled', 'disabled'); }
+            if (this.contextValue()) { this.setAttribute('disabled', 'disabled'); }
             else { this.removeAttribute('disabled'); }
 
             // I am alive!

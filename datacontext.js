@@ -1,5 +1,5 @@
-
-/**  Copyright (c) 2024, Manuel L�hmus (MIT License). */
+﻿
+/**  Copyright (c) 2024, Manuel Lõhmus (MIT License). */
 
 "use strict";
 
@@ -63,16 +63,16 @@
                 toString: {
                     writable: true, configurable: false, enumerable: false,
 
-                    value: function toString() {
+                    value: function toString(createModifiedData = false) {
 
-                        if (type === "object") { return "{" + Object.keys(this).map(function (k) { return _string(k) + ":" + _string(value[k]); }).join(",") + "}"; }
-                        if (type === "array") { return "[" + this.map(function (v) { return _string(v); }).join(",") + "]"; }
+                        if (type === "array") { return _stringifyArray(this); }
+                        if (type === "object") { return _stringifyObject(this); }
 
-                        return "undefined";
+                        return _stringifyValue(this);
 
-                        function _string(val) {
+                        function _stringifyValue(val) {
 
-                            if (val?._isDataContext) { return val.toString(); }
+                            if (val?._isDataContext) { return val.toString(createModifiedData); }
 
                             var t = typeof val;
 
@@ -80,10 +80,33 @@
                             if (t === "boolean") { return Boolean.prototype.toString.call(val); }
                             if (t === "number") { return Number.prototype.toString.call(val); }
                             if (val === null) { return "null"; }
-                            if (Array.isArray(val)) { return "[" + val.map(function (v) { return _string(v); }).join(",") + "]"; }
-                            if (t === "object") { return "{" + Object.keys(val).map(function (k) { return _string(k) + ":" + _string(val[k]); }).join(",") + "}"; }
+                            if (Array.isArray(val)) { return _stringifyArray(val); }
+                            if (t === "object") { return _stringifyObject(val); }
 
                             return "undefined";
+                        }
+                        function _stringifyArray(val) {
+
+                            return "[".concat(
+                                createModifiedData ? "\r\r" : "",
+                                val.map(function (v, i) {
+                                    return "".concat(
+                                        createModifiedData ? _stringifyValue(i) : "",
+                                        createModifiedData ? ":" : "",
+                                        _stringifyValue(v));
+                                }).join(","),
+                                "]"
+                            );
+                        }
+                        function _stringifyObject(val) {
+
+                            return "{".concat(
+                                createModifiedData ? "\r\r" : "",
+                                Object.keys(val).map(function (k) {
+                                    return _stringifyValue(k).concat(":", _stringifyValue(val[k]));
+                                }).join(","),
+                                "}"
+                            );
                         }
                     }
                 },
@@ -171,11 +194,28 @@
                      * @param {...any} params
                      * @returns {boolean} Returns true if the event had listeners, false otherwise.
                      */
-                    value: function emit(eventName, ...params) {
+                    value: function emitToParent(eventName, ...params) {
 
-                        var ret = this.emit(eventName, ...params);
+                        var ret = false;
 
-                        if (parent && typeof parent.emitToParent === "function") {
+                        if (eventName !== '-change') {
+
+                            ret = this.emit(eventName, ...params) || ret;
+                        }
+
+                        else if (this._events['-change']?.length) {
+
+                            clearTimeout(emitToParent.timeout);
+                            emitToParent.timeout = setTimeout(function (_this) {
+
+                                delete emitToParent.timeout;
+
+                                _this.emit("-change", { eventName: "-change", target: _this });
+                            }, 0, this);
+                        }
+
+                        if ((eventName === '-' || eventName === '-change') &&
+                            parent && typeof parent.emitToParent === "function") {
 
                             //_modified
                             if (params[0] && params[0].propertyPath) {
@@ -183,11 +223,7 @@
                                 params[0].propertyPath.unshift(propertyName);
                             }
 
-                            if (eventName === '-' || eventName === '-change') {
-
-                                ret = parent.emitToParent(eventName, ...params) || ret;
-                            }
-                            else { ret = parent.emitToParent(propertyName, ...params) || ret; }
+                            ret = parent.emitToParent(eventName, ...params) || ret;
                         }
 
                         return ret;
@@ -244,6 +280,16 @@
             proxy = new Proxy(value, handler);
 
             Object.keys(value).forEach(function (key) {
+
+                if (key.startsWith('-metadata')) {
+
+                    Object.defineProperty(value, key, {
+                        value: Array.isArray(value[key]) ? value[key] : [value[key]],
+                        enumerable: false
+                    });
+
+                    return;
+                }
 
                 if (value[key] && !value[key]._isDataContext) {
 
@@ -314,7 +360,7 @@
                     }
                 }
 
-                if (removeUnusedKeys) {
+                if (removeUnusedKeys && _typeof(target) === 'object') {
 
                     Object.keys(target).forEach(function (k) {
 
@@ -341,24 +387,20 @@
 
                 var ret = Reflect.deleteProperty(target, property);
 
-                if (oldValue === undefined) {
+                //if (oldValue === undefined) {
 
-                    //console.log("? del: oldValue is undefined", property, { target, propertyPath: [property], oldValue, newValue });
-                    target.emitToParent("-", { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
-                    target.emitToParent(property, { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
-                }
-                //else if (oldValue._parent === null) {
-
-                //    //console.log("'-delete' del: oldValue._parent is null", property, { target, propertyPath: [property], oldValue, newValue });
-                //    target.emitToParent("-delete", { target, propertyPath: [property], oldValue, newValue });
-                //    target.emitToParent(property, { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
+                //    //console.log("? del: oldValue is undefined", property, { target, propertyPath: [property], oldValue, newValue });
                 //}
-                else {
+                ////else if (oldValue._parent === null) {
 
-                    //console.log("'-delete' del: oldValue is ", property, event);
-                    target.emitToParent("-", { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
-                    target.emitToParent(property, { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
-                }
+                ////    //console.log("'-delete' del: oldValue._parent is null", property, { target, propertyPath: [property], oldValue, newValue });
+                ////}
+                //else {
+
+                //    //console.log("'-delete' del: oldValue is ", property, event);
+                //}
+
+                target.emitToParent("-", { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
 
                 if (Array.isArray(target)) {
 
@@ -381,13 +423,7 @@
                 }
 
                 target.emitToParent(property, { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
-
-                clearTimeout(target.emitToParent.timeout);
-                target.emitToParent.timeout = setTimeout(function () {
-
-                    delete target.emitToParent.timeout;
-                    target.emitToParent("-change", { eventName: "-change", target, propertyPath: [property], oldValue, newValue });
-                });
+                target.emitToParent("-change", { eventName: "-change", target });
 
                 return ret;
             }
@@ -407,52 +443,74 @@
                 if (oldValue !== newValue) {
 
                     var eventName = "";
-                    var _modifiedLength = target?._modified.length;
 
                     var ret = Reflect.set(target, property, newValue, proxy);
 
                     var isDC = newValue && newValue._isDataContext;
                     var isNew = isDC && newValue._parent !== proxy && oldValue === undefined;
-                    isDC && (newValue._isModified = true);
-                    isDC && (newValue._parent = proxy);
+                    if (isDC) {
+                        newValue._isModified = true;
+                        newValue._parent = proxy;
+                    }
 
                     if (isDC && newValue._propertyName !== property) {
 
                         //console.log("'-reposition' set: newValue propertyName is change ", newValue + "", ">", property, event);
                         eventName = "reposition";
                         newValue._propertyName = property;
-                        target.emitToParent("-", { eventName, target, propertyPath: [property], oldValue, newValue });
                     }
                     else if (isDC && isNew) {
 
                         //console.log("'-new' set: oldValue is undefined", property, event);
                         eventName = "new";
-                        target.emitToParent("-", { eventName, target, propertyPath: [property], oldValue, newValue });
                     }
                     else {
 
                         //console.log("'-set' set: newValue parent is change", property, event);
                         eventName = "set";
-                        target.emitToParent("-", { eventName, target, propertyPath: [property], oldValue, newValue });
                     }
+
+                    target.emitToParent("-", { eventName, target, propertyPath: [property], oldValue, newValue });
 
                     setModified(target, property);
 
-                    target.emitToParent(property, { eventName, target, propertyPath: [property], oldValue, newValue });
-
-                    clearTimeout(target.emitToParent.timeout);
-                    target.emitToParent.timeout = setTimeout(function () {
-
-                        delete target.emitToParent.timeout;
-
-                        if (target?._isModified || target?._modified.length !== _modifiedLength) {
-
-                            target.emitToParent("-change", { eventName: "-change", target, propertyPath: [property], oldValue, newValue });
-                        }
-                    });
+                    target.emit(property, { eventName, target, propertyPath: [property], oldValue, newValue });
+                    target.emitToParent("-change", { eventName: "-change", target });
 
                     return ret;
                 }
+            }
+
+            if (property === 'length' && _typeof(target) === 'array' && newValue < target.length && target[newValue] !== undefined) {
+
+                for (var i = target.length - 1; newValue <= i; i--) {
+
+                    var oldValue = target[i];
+
+                    delete target[i + ''];
+
+                    target.emitToParent("-", { eventName: "delete", target, propertyPath: [i + ''], oldValue, newValue: undefined });
+                    target._isModified = true;
+
+                    setModified(target._parent, target._propertyName);
+
+                    if (Array.isArray(target)) {
+
+                        var index = target._modified.indexOf(property);
+
+                        if (index > -1) {
+                            target._modified.splice(index, 1);
+                        }
+                    }
+
+                    Reflect.set(target, 'length', i, proxy);
+
+                    target.emitToParent(i + '', { eventName: "delete", target, propertyPath: [i + ''], oldValue, newValue: undefined });
+                }
+
+                target.emitToParent("-change", { eventName: "-change", target });
+
+                return true;
             }
 
             return Reflect.set(target, property, newValue, proxy);
@@ -556,7 +614,7 @@
             function _it(text) {
 
                 var currentPosition = 0;
-                this.text = text + '';
+                this.text = removeBOM(text + '');
                 this.position = 1;
                 this.current = this.text.charAt(0);
                 this.following = this.text.charAt(1);
@@ -603,12 +661,30 @@
                     this.current = this.text.charAt(pos - 1);
                     this.following = this.text.charAt(pos);
                 }
+
+                function removeBOM(str) {
+
+                    if (str.charCodeAt(0) === 65279) {
+
+                        return str.slice(1);
+                    }
+                    return str;
+                }
             }
 
             function _get(val, def) {
 
-                if (it.current === '\r' && it.following === '\r'
-                    || _typeof(val) !== _typeof(def)) {
+                if (it.current === '\r' && it.following === '\r') {
+
+                    if (!def._isDataContext) { def = createDataContext(def); }
+                    if (val?._events) { def._events = val._events; }
+
+                    it.next();
+                    it.next();
+
+                    return def;
+                }
+                else if (_typeof(val) !== _typeof(def)) {
 
                     return def;
                 }
@@ -844,7 +920,7 @@
 
                         _whitespace();
 
-                        var v = _value(obj[k]);
+                        var v = _value(obj[k] || val?.[k]);
 
                         _whitespace();
 
@@ -966,7 +1042,10 @@
 
                         _whitespace();
 
-                        var v = _value(arr[typeof index === "number" && index || i]);
+                        var v = _value(
+                            arr[typeof index === "number" && index || i] ||
+                            val?.[typeof index === "number" && index || i]
+                        );
 
                         _whitespace();
 
@@ -1086,7 +1165,7 @@
          * @param {any} value Input value.
          * @param {any} replacer Replacer. Optional. 
          * @param {any} space Space. Optional. 
-         * @param {any} options Options. Optional. 
+         * @param {Options} options Options. Optional. 
          * @returns {string} Returns a string.
          * 
          * @typedef {Object} Options
@@ -1094,9 +1173,12 @@
          * @property {boolean} setUnmodified Set unmodified. Optional.
          * @property {WriteStream} writeStream Write stream. Optional.
          * @property {function} callback Callback. Optional.
+         * @property {boolean} includeBOM Add the BOM to the beginning of the string. Optional.
          */
-        function stringify(value, replacer, space, { modifiedData = false, setUnmodified = false, writeStream = null, callback = null } = {}) {
+        function stringify(value, replacer, space, { modifiedData = false, setUnmodified = false, writeStream = null, callback = null, includeBOM = false } = {}) {
 
+            // Define the BOM character
+            var BOM = String.fromCharCode(65279);
             var strJSON = '';
             var isStream = _isStream(writeStream);
             var isModified = false;
@@ -1125,11 +1207,11 @@
 
                 if (typeof callback === "function") {
 
-                    callback();
+                    callback(includeBOM && strJSON ? BOM + strJSON : strJSON || undefined);
                 }
             });
 
-            return strJSON || undefined;
+            return includeBOM && strJSON ? BOM + strJSON : strJSON || undefined;
 
 
             function _isStream(obj) {
@@ -1237,7 +1319,6 @@
 
                 if (ignoreMetadata || !value) { return cb(); }
 
-                var arr = [];
                 var i = -1;
 
                 key = key + "";
@@ -1245,19 +1326,12 @@
 
                 if (value[key] && !Array.isArray(value[key])) {
 
-                    value[key] = [value[key]];
+                    Object.defineProperty(value, key, { value: [value[key]], enumerable: false });
+                }
 
-                    // remove from Ienumerable -metadata
-                    if (value.propertyIsEnumerable(key)) {
+                if (modifiedData && !value._isModified) {
 
-                        Object.defineProperty(value, key, { enumerable: false });
-
-                        if (value._modified.includes(key)) {
-
-                            const index = value._modified.indexOf(key);
-                            if (index > -1) { value._modified.splice(index, 1); }
-                        }
-                    }
+                    return cb();
                 }
 
                 write();
@@ -1411,14 +1485,7 @@
                         // signal of updating the entire object
                         if (modifiedData && value._isModified) {
 
-                            if (value._isModified) {
-
-                                startChar += '\r\r';
-                            }
-                            else {
-
-                                return cb();
-                            }
+                            startChar += '\r\r';
                         }
 
                         var keys = modifiedData && !value._isModified && !isModified
@@ -1427,6 +1494,8 @@
 
                         // write emty object
                         if (!keys.length) {
+
+                            if (modifiedData && !value._parent) { return true; }
 
                             _write(startChar + endChar, cb);
 
@@ -1686,6 +1755,7 @@
                         filePath,
                         { encoding: 'utf8' }
                     );
+
                     loadData(str);
                 }
                 function readFile() {
@@ -1723,7 +1793,17 @@
                         data.resetChanges();
                         data = syncData(data, obj, removeUnusedKeys);
 
-                        if (onFileChange) { setTimeout(onFileChange, 0, { datacontext: data }); }
+                        var strChanges = data.stringifyChanges();
+
+                        if (onDataChange) {
+
+                            setTimeout(onDataChange, 0, { strChanges, strJson: str, datacontext: data });
+                        }
+
+                        if (onFileChange) {
+
+                            setTimeout(onFileChange, 0, { strChanges, strJson: str, datacontext: data });
+                        }
                     }
                     catch (err) {
 
@@ -1751,7 +1831,7 @@
 
                         isFileProcessing = true;
 
-                        var strChanges = data.stringifyChanges(null, 2),
+                        var strChanges = data.stringifyChanges(),
                             strJson = createDataContext.stringify(data, null, 2);
 
                         isInitData = false;
@@ -1786,7 +1866,7 @@
             Object.defineProperties(createDataContext, {
 
                 watchJsonFile: { value: watchJsonFile, configurable: false, enumerable: false, writable: false },
-
+                //isSaveChanges
                 enableFileReadWrite: {
                     configurable: false, enumerable: false,
                     get: function () { return enableFileReadWrite; },
