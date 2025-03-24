@@ -1,241 +1,241 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <title>DB - Tests</title>
-    <script async src="https://cdn.jsdelivr.net/npm/data-context"></script>
-    <script async src="https://cdn.jsdelivr.net/npm/data-context-binding"></script>
-    <!--<script async src="./datacontext.js"></script>-->
+    <!--<script async src="https://cdn.jsdelivr.net/npm/data-context"></script>-->
+    <!--<script async src="https://cdn.jsdelivr.net/npm/data-context-binding"></script>-->
+    <script async src="./datacontext.js"></script>
     <script async type="text/javascript" src="./browser.js"></script>
     <script id="data" type="application/json"> [{"nr":123},{"nr":456},{"nr":789}] </script>
     <script>
 
         importModules(
-        ["data-context", "data-context-binding"],
-        function tests(DC, DB) {
+            ["data-context", "data-context-binding"],
+            function tests(DC, DB) {
 
-        testRunner("DB - Tests          ", { skip: false }, (test) => {
-        test("Startup               ", { skip: false }, (check, done) => {
-        var datacontext = DB();
-        document.body.innerHTML = "";
-        check(typeof document.body.parentElement.datacontext).mustBe("object");
-        check(document.body.parentElement.datacontext._isDataContext).mustBe(true);
-        check(document.body.parentElement.datacontext.stringifyChanges()).mustBe('[]');
-        check(DC.stringify(document.body.parentElement.datacontext)).mustBe('[{"nr":123},{"nr":456},{"nr":789}]');
-        done();
-        });
-        test("Default innerHTMLBind ", { skip: false }, (check) => {
-        var datacontext = DB();
-        var testDiv = document.createElement('div');
-        var div = document.createElement('div');
-        div.setAttribute('path', '[0].nr');
-        div.setAttribute('bind', '');
-        testDiv.appendChild(div);
-        document.body.appendChild(testDiv);
-        DB.bindAllElements(testDiv);
-        check(div.innerHTML).mustBe('123');
-        datacontext[0].nr = 111;
-        check(div.innerHTML).mustBe('111')
-        datacontext[0].nr = 123;
-        check(div.innerHTML).mustBe('123')
-        testDiv.remove();
-        check(datacontext[0].emit("nr")).mustBe(false);
-        check(datacontext[0]._events["nr"]).mustBe(undefined);
+                testRunner("DB - Tests          ", { skip: false }, (test) => {
+                    test("Startup               ", { skip: false }, (check, done) => {
+                        var datacontext = DB();
+                        document.body.innerHTML = "";
+                        check(typeof document.body.parentElement.datacontext).mustBe("object");
+                        check(document.body.parentElement.datacontext._isDataContext).mustBe(true);
+                        check(document.body.parentElement.datacontext.stringifyChanges()).mustBe(undefined);
+                        check(DC.stringify(document.body.parentElement.datacontext)).mustBe('[{"nr":123},{"nr":456},{"nr":789}]');
+                        done();
+                    });
+                    test("Default innerHTMLBind ", { skip: false }, (check) => {
+                        var datacontext = DB();
+                        var testDiv = document.createElement('div');
+                        var div = document.createElement('div');
+                        div.setAttribute('path', '[0].nr');
+                        div.setAttribute('bind', '');
+                        testDiv.appendChild(div);
+                        document.body.appendChild(testDiv);
+                        DB.bindAllElements(testDiv);
+                        check(div.innerHTML).mustBe('123');
+                        datacontext[0].nr = 111;
+                        check(div.innerHTML).mustBe('111')
+                        datacontext[0].nr = 123;
+                        check(div.innerHTML).mustBe('123')
+                        testDiv.remove();
+                        check(datacontext[0].emit("nr")).mustBe(false);
+                        check(datacontext[0]._events["nr"]).mustBe(undefined);
 
-        return true;
-        });
-        test("Default valueBind     ", { skip: false }, (check) => {
-        //debugger;
-        var datacontext = DB();
-        var testDiv = document.createElement('div');
-        var input = document.createElement('input');
-        input.setAttribute('path', '[0].nr');
-        input.setAttribute('bind', '');
-        testDiv.appendChild(input);
-        document.body.appendChild(testDiv);
-        DB.bindAllElements(testDiv);
-        check(input.value).mustBe('123');
-        input.value = 'abc';
-        input.onchange();
-        check(datacontext[0].nr).mustBe('abc');
-        datacontext[0].nr = 123;
-        check(datacontext[0].nr).mustBe(123);
-        check(input.value).mustBe('123');
-        testDiv.remove();
-        check(datacontext[0].emit("nr")).mustBe(false);
-        check(datacontext[0]._events["nr"]).mustBe(undefined);
+                        return true;
+                    });
+                    test("Default valueBind     ", { skip: false }, (check) => {
+                        //debugger;
+                        var datacontext = DB();
+                        var testDiv = document.createElement('div');
+                        var input = document.createElement('input');
+                        input.setAttribute('path', '[0].nr');
+                        input.setAttribute('bind', '');
+                        testDiv.appendChild(input);
+                        document.body.appendChild(testDiv);
+                        DB.bindAllElements(testDiv);
+                        check(input.value).mustBe('123');
+                        input.value = 'abc';
+                        input.onchange();
+                        check(datacontext[0].nr).mustBe('abc');
+                        datacontext[0].nr = 123;
+                        check(datacontext[0].nr).mustBe(123);
+                        check(input.value).mustBe('123');
+                        testDiv.remove();
+                        check(datacontext[0].emit("nr")).mustBe(false);
+                        check(datacontext[0]._events["nr"]).mustBe(undefined);
 
-        return true;
-        });
-        test("Default checkBind     ", { skip: false }, (check) => {
-        //debugger;
-        var datacontext = DB();
-        datacontext.unshift({ is: true });
-        var testDiv = document.createElement('div');
-        var input = document.createElement('input');
-        input.setAttribute('type', 'checkbox');
-        input.setAttribute('path', '[0].is');
-        input.setAttribute('bind', '');
-        testDiv.appendChild(input);
-        document.body.appendChild(testDiv);
-        DB.bindAllElements(testDiv);
-        check(input.checked).mustBe(true);
-        input.checked = false;
-        input.onchange();
-        check(datacontext[0].is).mustBe(false);
-        datacontext[0].is = true;
-        check(datacontext[0].is).mustBe(true);
-        check(input.checked).mustBe(true);
-        check(Boolean(input.attributes.checked)).mustBe(true);
-        testDiv.remove();
-        check(datacontext[0].emit("is")).mustBe(false);
-        check(datacontext[0]._events["is"]).mustBe(undefined);
-        datacontext.shift();
-        check(datacontext.length).mustBe(3);
+                        return true;
+                    });
+                    test("Default checkBind     ", { skip: false }, (check) => {
+                        //debugger;
+                        var datacontext = DB();
+                        datacontext.unshift({ is: true });
+                        var testDiv = document.createElement('div');
+                        var input = document.createElement('input');
+                        input.setAttribute('type', 'checkbox');
+                        input.setAttribute('path', '[0].is');
+                        input.setAttribute('bind', '');
+                        testDiv.appendChild(input);
+                        document.body.appendChild(testDiv);
+                        DB.bindAllElements(testDiv);
+                        check(input.checked).mustBe(true);
+                        input.checked = false;
+                        input.onchange();
+                        check(datacontext[0].is).mustBe(false);
+                        datacontext[0].is = true;
+                        check(datacontext[0].is).mustBe(true);
+                        check(input.checked).mustBe(true);
+                        check(Boolean(input.attributes.checked)).mustBe(true);
+                        testDiv.remove();
+                        check(datacontext[0].emit("is")).mustBe(false);
+                        check(datacontext[0]._events["is"]).mustBe(undefined);
+                        datacontext.shift();
+                        check(datacontext.length).mustBe(3);
 
-        return true;
-        });
-        test("Default hiddenBind    ", { skip: false }, (check) => {
-        //debugger;
-        var datacontext = DB();
-        datacontext.unshift({ hidden: true });
-        var testDiv = document.createElement('div');
-        var div = document.createElement('div');
-        div.setAttribute('path', '[0].hidden');
-        div.setAttribute('bind', 'hidden');
-        div.innerHTML = 'visible text';
-        testDiv.appendChild(div);
-        document.body.appendChild(testDiv);
-        DB.bindAllElements(testDiv);
-        check(isVisible(div)).mustBe(false);
-        datacontext[0].hidden = false;
-        check(datacontext[0].hidden).mustBe(false);
-        check(isVisible(div)).mustBe(true);
-        testDiv.remove();
-        check(datacontext[0].emit("hidden")).mustBe(false);
-        check(datacontext[0]._events["hidden"]).mustBe(undefined);
-        datacontext.shift();
-        check(datacontext.length).mustBe(3);
+                        return true;
+                    });
+                    test("Default hiddenBind    ", { skip: false }, (check) => {
+                        //debugger;
+                        var datacontext = DB();
+                        datacontext.unshift({ hidden: true });
+                        var testDiv = document.createElement('div');
+                        var div = document.createElement('div');
+                        div.setAttribute('path', '[0].hidden');
+                        div.setAttribute('bind', 'hidden');
+                        div.innerHTML = 'visible text';
+                        testDiv.appendChild(div);
+                        document.body.appendChild(testDiv);
+                        DB.bindAllElements(testDiv);
+                        check(isVisible(div)).mustBe(false);
+                        datacontext[0].hidden = false;
+                        check(datacontext[0].hidden).mustBe(false);
+                        check(isVisible(div)).mustBe(true);
+                        testDiv.remove();
+                        check(datacontext[0].emit("hidden")).mustBe(false);
+                        check(datacontext[0]._events["hidden"]).mustBe(undefined);
+                        datacontext.shift();
+                        check(datacontext.length).mustBe(3);
 
-        return true;
+                        return true;
 
-        function isVisible(e) {
-        return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
-        }
-        });
-        test("Default rebinding     ", { skip: false }, (check) => {
-        //debugger;
-        var datacontext = DB();
-        var testDiv = document.createElement('div');
-        var div = document.createElement('div');
-        div.setAttribute('path', '[0].nr');
-        div.setAttribute('bind', '');
-        testDiv.appendChild(div);
-        document.body.appendChild(testDiv);
-        DB.bindAllElements(testDiv);
-        check(div.innerHTML).mustBe('123');
-        datacontext[0] = { "nr": 'abc' };
-        check(div.innerHTML).mustBe('abc');
-        datacontext[0] = { "nr": 123 };
-        testDiv.remove();
-        check(datacontext[0].emit("nr")).mustBe(false);
-        check(datacontext[0]._events["nr"]).mustBe(undefined);
+                        function isVisible(e) {
+                            return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+                        }
+                    });
+                    test("Default rebinding     ", { skip: false }, (check) => {
+                        //debugger;
+                        var datacontext = DB();
+                        var testDiv = document.createElement('div');
+                        var div = document.createElement('div');
+                        div.setAttribute('path', '[0].nr');
+                        div.setAttribute('bind', '');
+                        testDiv.appendChild(div);
+                        document.body.appendChild(testDiv);
+                        DB.bindAllElements(testDiv);
+                        check(div.innerHTML).mustBe('123');
+                        datacontext[0] = { "nr": 'abc' };
+                        check(div.innerHTML).mustBe('abc');
+                        datacontext[0] = { "nr": 123 };
+                        testDiv.remove();
+                        check(datacontext[0].emit("nr")).mustBe(false);
+                        check(datacontext[0]._events["nr"]).mustBe(undefined);
 
-        return true;
-        });
-        test("Template              ", { skip: false }, (check) => {
-        //debugger;
-        var datacontext = DB();
-        var testDiv = document.createElement('div');
-        document.body.appendChild(testDiv);
-        testDiv.setAttribute('template', '#temp');
-        var template = document.createElement('template');
-        testDiv.appendChild(template);
-        template.setAttribute('id', 'temp');
-        template.innerHTML = '<div path="[0].nr" bind></div>'
-        var div = template.content.lastElementChild;
-        DB.bindAllElements(testDiv);
-        check(div.innerHTML).mustBe('');
-        var newDiv = testDiv.lastElementChild;
-        check(newDiv instanceof HTMLTemplateElement).mustBe(false);
-        check(newDiv.innerHTML).mustBe('123');
-        datacontext[0] = { "nr": 'abc' };
-        check(newDiv.innerHTML).mustBe('abc');
-        datacontext[0] = { "nr": 123 };
-        testDiv.remove();
-        check(datacontext[0].emit("nr")).mustBe(false);
-        check(datacontext[0]._events["nr"]).mustBe(undefined);
+                        return true;
+                    });
+                    test("Template              ", { skip: false }, (check) => {
+                        //debugger;
+                        var datacontext = DB();
+                        var testDiv = document.createElement('div');
+                        document.body.appendChild(testDiv);
+                        testDiv.setAttribute('template', '#temp');
+                        var template = document.createElement('template');
+                        testDiv.appendChild(template);
+                        template.setAttribute('id', 'temp');
+                        template.innerHTML = '<div path="[0].nr" bind></div>'
+                        var div = template.content.lastElementChild;
+                        DB.bindAllElements(testDiv);
+                        check(div.innerHTML).mustBe('');
+                        var newDiv = testDiv.lastElementChild;
+                        check(newDiv instanceof HTMLTemplateElement).mustBe(false);
+                        check(newDiv.innerHTML).mustBe('123');
+                        datacontext[0] = { "nr": 'abc' };
+                        check(newDiv.innerHTML).mustBe('abc');
+                        datacontext[0] = { "nr": 123 };
+                        testDiv.remove();
+                        check(datacontext[0].emit("nr")).mustBe(false);
+                        check(datacontext[0]._events["nr"]).mustBe(undefined);
 
-        return true;
-        });
-        test("Template fetch        ", { skip: location.protocol === "file:" }, (check, done) => {
-        //debugger;
-        var testDiv = document.createElement('div');
-        document.body.appendChild(testDiv);
-        testDiv.setAttribute('path', '[0]');
-        testDiv.setAttribute('template', './template.html');
-        DB.bindAllElements(testDiv);
-        setTimeout(function () {
-        var datacontext = DB();
-        var newDiv = testDiv.firstElementChild;
-        check(newDiv instanceof HTMLTemplateElement).mustBe(false);
-        check(newDiv.innerHTML).mustBe('123');
-        datacontext[0] = { "nr": 'abc' };
-        check(newDiv.innerHTML).mustBe('abc');
-        datacontext[0] = { "nr": 123 };
-        testDiv.remove();
-        check(datacontext[0].emit("nr")).mustBe(false);
-        check(datacontext[0]._events["nr"]).mustBe(undefined);
-        done();
-        }, 100);
-        });
-        test("Templates             ", { skip: false }, (check) => {
-        //debugger;
-        var datacontext = DB();
-        var testDiv = document.createElement('div');
-        document.body.appendChild(testDiv);
-        testDiv.setAttribute('templates', '#temp');
-        var template = document.createElement('template');
-        testDiv.appendChild(template);
-        template.setAttribute('id', 'temp');
-        template.innerHTML = '<div path="nr" bind></div>'
-        var div = template.content.lastElementChild;
-        DB.bindAllElements(testDiv);
-        check(div.innerHTML).mustBe('');
-        var lastDiv = testDiv.lastElementChild;
-        check(lastDiv instanceof HTMLTemplateElement).mustBe(false);
-        check(lastDiv.innerHTML).mustBe('789');
-        datacontext[2] = { "nr": 'abc' };
-        check(lastDiv.innerHTML).mustBe('abc');
-        datacontext[2] = { "nr": 789 };
-        testDiv.remove();
-        check(datacontext[2].emit("nr")).mustBe(false);
-        check(datacontext[2]._events["nr"]).mustBe(undefined);
+                        return true;
+                    });
+                    test("Template fetch        ", { skip: location.protocol === "file:" }, (check, done) => {
+                        //debugger;
+                        var testDiv = document.createElement('div');
+                        document.body.appendChild(testDiv);
+                        testDiv.setAttribute('path', '[0]');
+                        testDiv.setAttribute('template', './template.html');
+                        DB.bindAllElements(testDiv);
+                        setTimeout(function () {
+                            var datacontext = DB();
+                            var newDiv = testDiv.firstElementChild;
+                            check(newDiv instanceof HTMLTemplateElement).mustBe(false);
+                            check(newDiv.innerHTML).mustBe('123');
+                            datacontext[0] = { "nr": 'abc' };
+                            check(newDiv.innerHTML).mustBe('abc');
+                            datacontext[0] = { "nr": 123 };
+                            testDiv.remove();
+                            check(datacontext[0].emit("nr")).mustBe(false);
+                            check(datacontext[0]._events["nr"]).mustBe(undefined);
+                            done();
+                        }, 100);
+                    });
+                    test("Templates             ", { skip: false }, (check) => {
+                        //debugger;
+                        var datacontext = DB();
+                        var testDiv = document.createElement('div');
+                        document.body.appendChild(testDiv);
+                        testDiv.setAttribute('templates', '#temp');
+                        var template = document.createElement('template');
+                        testDiv.appendChild(template);
+                        template.setAttribute('id', 'temp');
+                        template.innerHTML = '<div path="nr" bind></div>'
+                        var div = template.content.lastElementChild;
+                        DB.bindAllElements(testDiv);
+                        check(div.innerHTML).mustBe('');
+                        var lastDiv = testDiv.lastElementChild;
+                        check(lastDiv instanceof HTMLTemplateElement).mustBe(false);
+                        check(lastDiv.innerHTML).mustBe('789');
+                        datacontext[2] = { "nr": 'abc' };
+                        check(lastDiv.innerHTML).mustBe('abc');
+                        datacontext[2] = { "nr": 789 };
+                        testDiv.remove();
+                        check(datacontext[2].emit("nr")).mustBe(false);
+                        check(datacontext[2]._events["nr"]).mustBe(undefined);
 
-        return true;
-        });
-        test("Templates fetch       ", { skip: location.protocol === "file:" }, (check, done) => {
-        //debugger;
-        var testDiv = document.createElement('div');
-        document.body.appendChild(testDiv);
-        testDiv.setAttribute('templates', './template.html');
-        DB.bindAllElements(testDiv);
-        setTimeout(function () {
-        var datacontext = DB();
-        var newDiv = testDiv.firstElementChild;
-        check(newDiv instanceof HTMLTemplateElement).mustBe(false);
-        check(newDiv.innerHTML).mustBe('123');
-        datacontext[0] = { "nr": 'abc' };
-        check(newDiv.innerHTML).mustBe('abc');
-        datacontext[0] = { "nr": 123 };
-        testDiv.remove();
-        check(datacontext[0].emit("nr")).mustBe(false);
-        check(datacontext[0]._events["nr"]).mustBe(undefined);
-        done();
-        }, 100);
-        });
-        });
-        });
+                        return true;
+                    });
+                    test("Templates fetch       ", { skip: location.protocol === "file:" }, (check, done) => {
+                        //debugger;
+                        var testDiv = document.createElement('div');
+                        document.body.appendChild(testDiv);
+                        testDiv.setAttribute('templates', './template.html');
+                        DB.bindAllElements(testDiv);
+                        setTimeout(function () {
+                            var datacontext = DB();
+                            var newDiv = testDiv.firstElementChild;
+                            check(newDiv instanceof HTMLTemplateElement).mustBe(false);
+                            check(newDiv.innerHTML).mustBe('123');
+                            datacontext[0] = { "nr": 'abc' };
+                            check(newDiv.innerHTML).mustBe('abc');
+                            datacontext[0] = { "nr": 123 };
+                            testDiv.remove();
+                            check(datacontext[0].emit("nr")).mustBe(false);
+                            check(datacontext[0]._events["nr"]).mustBe(undefined);
+                            done();
+                        }, 100);
+                    });
+                });
+            });
 
 
         function testRunner(runnerName, options, cb) {

@@ -190,10 +190,9 @@
                 if (CreateLink) {
 
                     element.wsLink = WsUser.CreateLink(path, element);
-                    element.datacontext = element.wsLink.datacontext;
+                    element.wsLink.bindAllElements = function (elem) { bindAllElements(elem, rebinding); };
                     element.setAttribute("linked", path);
                     element.removeAttribute("link");
-                    bindAllElements(element, rebinding);
                 }
             }
 
@@ -470,15 +469,14 @@
 
                 element: { value: d.rootElement, writable: false, configurable: false, enumerable: false },
 
-                source: { value: d.source, writable: false, configurable: false, enumerable: false },
-                //source: {
-                //    configurable: false, enumerable: false,
+                source: {
+                    configurable: false, enumerable: false,
 
-                //    get: function () {
+                    get: function () {
 
-                //        return d.arrPath.reduce(function (s, k) { return s[k]; }, d.rootSource);
-                //    }
-                //},
+                        return d.arrPath.reduce(function (s, k) { return s[k]; }, d.rootSource);
+                    }
+                },
 
                 property: { value: d.property || "-change", writable: false, configurable: false, enumerable: false },
 
@@ -541,7 +539,7 @@
 
                 if (d.rootSource?._events && (
                     !d.rootSource._events["-"] ||
-                    !d.rootSource._events["-"].find(function (fn) { return fn.name.includes("_bindHandler"); })
+                    !d.rootSource._events["-"].find(function (fn) { return fn.name.includes("bindHandler"); })
                 )) {
 
                     d.rootSource.on("-", bindHandler.bind(d.rootElement), d.rootElement);

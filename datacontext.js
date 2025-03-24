@@ -446,26 +446,24 @@
 
                     var ret = Reflect.set(target, property, newValue, proxy);
 
-                    var isDC = newValue && newValue._isDataContext;
-                    var isNew = isDC && newValue._parent !== proxy && oldValue === undefined;
+                    var isDC = newValue?._isDataContext;
+                    var isNew = oldValue === undefined;
+
                     if (isDC) {
                         newValue._isModified = true;
                         newValue._parent = proxy;
-                    }
-
-                    if (isDC && newValue._propertyName !== property) {
-
-                        //console.log("'-reposition' set: newValue propertyName is change ", newValue + "", ">", property, event);
-                        eventName = "reposition";
                         newValue._propertyName = property;
                     }
-                    else if (isDC && isNew) {
 
+                    if (isNew) {
                         //console.log("'-new' set: oldValue is undefined", property, event);
                         eventName = "new";
                     }
+                    else if (isDC && typeof newValue._propertyName === 'string' && newValue._propertyName !== property) {
+                        //console.log("'-reposition' set: newValue propertyName is change ", newValue + "", ">", property, event);
+                        eventName = "reposition";
+                    }
                     else {
-
                         //console.log("'-set' set: newValue parent is change", property, event);
                         eventName = "set";
                     }
@@ -678,6 +676,7 @@
 
                     if (!def._isDataContext) { def = createDataContext(def); }
                     if (val?._events) { def._events = val._events; }
+                    if (val?._propertyName && val._parent) { val._parent[val._propertyName] = def; }
 
                     it.next();
                     it.next();
@@ -685,6 +684,14 @@
                     return def;
                 }
                 else if (_typeof(val) !== _typeof(def)) {
+
+                    if (val?._isDataContext) {
+
+                        def = createDataContext(def);
+                        def._events = val._events;
+
+                        if (val?._propertyName && val._parent) { val._parent[val._propertyName] = def; }
+                    }
 
                     return def;
                 }
