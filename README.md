@@ -1,25 +1,26 @@
-﻿
-<div class="row w-100">
-<div class="col-3 d-none d-lg-inline">
-<div class="sticky-top overflow-auto vh-100">
-<div id="list-headers" class="list-group mt-5">
 
-- [**data-context-binding**](#data-context-binding)
-  - [**Introduction**](#introduction)
-  - [**Features**](#features)
-  - [**Testing**](#testing)
-  - [**Usage**](#usage)
-  - [**References**](#references)
-  - [**License**](#license)
+<div class="row w-100">
+<div class="col-lg-3 d-lg-inline">
+<div class="sticky-top overflow-auto vh-lg-100">
+<div id="list-headers" class="list-group mt-2 ms-lg-2 ms-4">
+
+#### Table of contents
+- [**Data Context Binding**](#data-context-binding)
+- [**Introduction**](#introduction)
+- [**Features**](#features)
+- [**Testing**](#testing)
+- [**Usage**](#usage)
+- [**References**](#references)
+- [**License**](#license)
     
 </div>
 </div>
 </div>
  
-<div class="col">
-<div class="p-2 markdown-body" data-bs-spy="scroll" data-bs-target="#list-headers" data-bs-offset="0" tabindex="0">
+<div class="col-lg-9 mt-2">
+<div class="ps-4 markdown-body" data-bs-spy="scroll" data-bs-target="#list-headers" data-bs-offset="0" tabindex="0">
 
-# data-context-binding
+# Data Context Binding
 
 Simple and lightweight solution for binding data to DOM elements.<br>
 This manual is also available in [HTML5](https://manuel-lohmus.github.io/data-context-binding/README.html).

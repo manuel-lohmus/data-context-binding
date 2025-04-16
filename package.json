@@ -1,7 +1,7 @@
-﻿{
+{
   "name": "data-context-binding",
   "description": "Simple and lightweight solution for binding data to DOM elements.",
-  "version": "2.0.0-beta.5",
+  "version": "2.0.0-beta.6",
   "license": "MIT",
   "keywords": [
     "data",
@@ -36,8 +36,7 @@
     "index.test.html",
     "LICENSE",
     "package.json",
-    "README.md",
-    "template.html"
+    "README.md"
   ],
   "scripts": { "test": "start ./index.test.html" },
   "homepage": "https://github.com/manuel-lohmus/data-context-binding#readme",
