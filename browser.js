@@ -1,5 +1,4 @@
-﻿
-/** Copyright (c) 2024, Manuel Lõhmus (MIT License). */
+/** Copyright (c) Manuel Lõhmus (MIT License). */
 
 "use strict";
 
@@ -30,6 +29,7 @@
             getvalue: { value: getValueBind, writable: true, configurable: false, enumerable: false },
             setvalue: { value: setValueBind, writable: true, configurable: false, enumerable: false },
             check: { value: checkBind, writable: true, configurable: false, enumerable: false },
+            visible: { value: visibleBind, writable: true, configurable: false, enumerable: false },
             hidden: { value: hiddenBind, writable: true, configurable: false, enumerable: false },
             enabled: { value: enabledBind, writable: true, configurable: false, enumerable: false },
             disabled: { value: disabledBind, writable: true, configurable: false, enumerable: false },
@@ -104,8 +104,10 @@
 
             bindElement(rootElement, rebinding);
 
-            rootElement.querySelectorAll("[bind]:not(template>*):not([link]>*),[onbind]:not(template>*):not([link]>*),[onunbind]:not(template>*):not([link]>*),[template]:not(template>*):not([link]>*),[templates]:not(template>*):not([link]>*),[rebinding]:not(template>*):not([link]>*),[link]:not(template>*):not([link]>*)")
+            rootElement.querySelectorAll(`[bind],[onbind],[template],[templates],[rebinding],[link]`)
                 .forEach(function (element) {
+
+                    if (isParentTemplateOrLink(element)) { return; }
 
                     if (!element.contextValue || rebinding) {
 
@@ -115,6 +117,19 @@
                         })(element, rebinding));
                     }
                 });
+
+            function isParentTemplateOrLink(element) {
+
+                var parent = element.parentElement;
+
+                while (parent !== rootElement) {
+
+                    if (parent.attributes.template || parent.attributes.link) { return true; }
+
+                    parent = parent.parentElement;
+                }
+                return false;
+            }
         }
 
         function rebindAllElements(rootElement) {
@@ -136,7 +151,6 @@
                 !element?.attributes?.template &&
                 !element?.attributes?.templates &&
                 !element?.attributes?.onbind &&
-                !element?.attributes?.onunbind &&
                 !element?.attributes?.bind &&
                 !element?.attributes?.rebinding &&
                 !element?.attributes?.link
@@ -155,7 +169,7 @@
 
             if (element.bindingContext?.isActive) { element.bindingContext.isActive(false); } // for rebinding
 
-            if (element.attributes.link && !element.linked) {// if true then linked
+            if (element.attributes.link) {
 
                 _link(element.attributes.link.value);
 
@@ -164,14 +178,14 @@
 
             var _bindingContext = bindingContext(element, rebinding);
 
-            if (!rebinding && element.attributes.template) {
+            if (element.attributes.template) {
 
                 _template(element.attributes.template.value);
 
                 return;
             }
 
-            if (!rebinding && element.attributes.templates) {
+            if (element.attributes.templates) {
 
                 _template(element.attributes.templates.value, true);
 
@@ -185,14 +199,17 @@
 
             function _link(path) {
 
+                if (element.linked) { return; }
+
                 var { CreateLink } = globalScope?.modules?.['ws-user'];
 
                 if (CreateLink) {
 
+                    //element.setAttribute("linked", path);
+                    //element.removeAttribute("link");
+                    element.linked = true;
                     element.wsLink = WsUser.CreateLink(path, element);
-                    element.wsLink.bindAllElements = function (elem) { bindAllElements(elem, rebinding); };
-                    element.setAttribute("linked", path);
-                    element.removeAttribute("link");
+                    element.wsLink.bindAllElements = function (elem, rebind = false) { bindAllElements(elem, rebind); };
                 }
             }
 
@@ -258,6 +275,8 @@
 
                     if (isMultiple) {
 
+                        if (typeof _bindingContext.value !== 'object' || !_bindingContext.value) { return; }
+
                         let keys = Object.keys(_bindingContext.value);//.sort();
 
                         for (var i = 0; i < keys.length; i++) {
@@ -269,13 +288,13 @@
 
                             setTimeout(function () {
 
-                                if (_bindingContext.source && typeof _bindingContext.source.on === "function") {
+                                if (_bindingContext.value && typeof _bindingContext.value.on === "function") {
 
-                                    _bindingContext.source.on(
+                                    _bindingContext.value.on(
                                         "-",
                                         function addTemplate(event) {
 
-                                            if (event.eventName === "new") {
+                                            if (event.eventName === "new" && (!isMultiple || isMultiple && event.propertyPath.length === 1)) {
 
                                                 return appendTemplate(event.propertyPath.at(-1), event.target);
                                             }
@@ -285,11 +304,11 @@
                                         element
                                     );
 
-                                    _bindingContext.source.on(
+                                    _bindingContext.value.on(
                                         "-",
                                         function removeTemplate(event) {
 
-                                            if (event.eventName === "delete") {
+                                            if (event.eventName === "delete" && (!isMultiple || isMultiple && event.propertyPath.length === 1)) {
 
                                                 element.querySelectorAll(`:scope > [path="${event.propertyPath.at(-1)}"]`).forEach(function (e) {
 
@@ -307,12 +326,9 @@
                             return;
                         }
                     }
-                    else {
 
-                        return appendTemplate();
-                    }
+                    return appendTemplate();
 
-                    return;
 
                     function appendTemplate(key, target) {
 
@@ -392,11 +408,13 @@
                     } catch (err) { return _error("[ bind ] ", err); }
                 }
 
-                if (element.attributes.onbind && DataContextBinding.bind) {
+                if (element.attributes.onbind) {
 
                     try {
 
-                        _bind(DataContextBinding.bind("event", element.attributes.onbind.value));
+                        element.setAttribute('onblur', element.attributes.onbind.value);
+                        _bind(element.onblur);
+                        element.removeAttribute('onblur');
 
                     } catch (err) { return _error("[ onbind ] ", err); }
                 }
@@ -405,24 +423,7 @@
 
                 function _bind(fnBind) {
 
-                    if (_bindingContext.source === undefined) {
-
-                        var event = { eventName: "unbind", target: undefined, propertyPath: [_bindingContext.property], oldValue: undefined, newValue: undefined };
-
-                        element.setAttribute("unbinded", "");
-
-                        fnBind.call(element, event);
-
-                        if (element.attributes.onunbind && DataContextBinding.bind) {
-
-                            try {
-
-                                (DataContextBinding.bind("event", element.attributes.onunbind.value)).call(element, event);
-
-                            } catch (err) { return _error("[ onunbind ] ", err); }
-                        }
-                    }
-                    else if (fnBind.call(element, { eventName: "bind", target: _bindingContext.source, propertyPath: [_bindingContext.property], oldValue: _bindingContext.value, newValue: _bindingContext.value })) {
+                    if (fnBind.call(element, { eventName: "bind", target: _bindingContext.source, propertyPath: [_bindingContext.property], oldValue: _bindingContext.value, newValue: _bindingContext.value })) {
 
                         if (_bindingContext.source && typeof _bindingContext.source.on === "function") {
 
@@ -800,7 +801,7 @@
 
         function innerHTMLBind(event) {
 
-            if (event.eventName === "unbind") {
+            if (event?.eventName === "unbind") {
 
                 this.innerHTML = '';
                 // I am dead!
@@ -817,8 +818,8 @@
 
             if (event.eventName === "unbind") {
 
-                this.onchange = null;
-                this.onkeydown = null;
+                this.removeEventListener("change", change);
+                this.removeEventListener("keydown", keydown);
 
                 this.value = '';
 
@@ -831,19 +832,19 @@
             // Init
             if (event.eventName === "bind") {
 
-                this.onchange = function () { this.contextValue(this.value); };
-                this.onkeydown = function (ev) { if (ev.keyCode === 27) { this.value = his.contextValue(); } };
+                this.addEventListener("change", change);
+                this.addEventListener("keydown", keydown);
             }
 
             // I am alive!
             return true;
+
+            function change(ev) { if (this.contextValue !== undefined) { this.contextValue(this.value); } }
+            function keydown(ev) { if (ev.keyCode === 27) { this.value = this.contextValue(); } }
         }
         function getValueBind(event) {
 
             if (event.eventName === "unbind") {
-
-                this.onchange = null;
-                this.onkeydown = null;
 
                 this.value = '';
 
@@ -860,8 +861,8 @@
 
             if (event.eventName === "unbind") {
 
-                this.onchange = null;
-                this.onkeydown = null;
+                this.removeEventListener("change", change);
+                this.removeEventListener("keydown", keydown);
 
                 this.value = '';
 
@@ -872,18 +873,21 @@
             // Init
             if (event.eventName === "bind") {
 
-                this.onchange = function () { this.contextValue(this.value); };
-                this.onkeydown = function (ev) { if (ev.keyCode === 27) { this.value = this.contextValue(); } };
+                this.addEventListener("change", change);
+                this.addEventListener("keydown", keydown);
             }
 
             // I am alive!
             return true;
+
+            function change(ev) { if (this.contextValue !== undefined) { this.contextValue(this.value); } }
+            function keydown(ev) { if (ev.keyCode === 27) { this.value = this.contextValue(); } }
         }
         function checkBind(event) {
 
             if (event.eventName === "unbind") {
 
-                this.onchange = null;
+                this.removeEventListener("change", change);
 
                 // I am dead!
                 return false;
@@ -895,8 +899,23 @@
             // Init
             if (event.eventName === "bind") {
 
-                this.onchange = function () { this.contextValue(this.checked); };
+                this.addEventListener("change", change);
             }
+
+            // I am alive!
+            return this.contextValue() === undefined ? false : true;
+
+            function change(ev) { if (this.contextValue() !== undefined) { this.contextValue(this.checked); } }
+        }
+        function visibleBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                // I am dead!
+                return false;
+            }
+
+            this.contextValue() ? this.removeAttribute("hidden") : this.setAttribute("hidden", "");
 
             // I am alive!
             return this.contextValue() === undefined ? false : true;
@@ -918,6 +937,7 @@
 
             if (event.eventName === "unbind") {
 
+                this.removeEventListener("change", change);
                 // I am dead!
                 return false;
             }
@@ -936,7 +956,7 @@
                         _this.value = str;
                     }, 50, this);
 
-                    //TODO [ x ] I am dead!
+                    // I am dead!
                     return this.bindingContext?.isActive();
                 },
                     // Set DOM element. 
@@ -945,16 +965,21 @@
                     this
                 );
 
-                this.onchange = function () {
-                    // Let's take the context of the data.
-                    this.contextValue()
-                        // We will overvalue the modified JSON string data.
-                        .overwritingData(this.value);
-                };
+                this.addEventListener("change", change);
             }
 
             // I am alive!
             return true;
+
+            function change(ev) {
+
+                if (this.contextValue !== undefined) {
+                    // Let's take the context of the data.
+                    this.contextValue()
+                        // We will overvalue the modified JSON string data.
+                        .overwritingData(this.value);
+                }
+            }
         }
         function enabledBind(event) {
 

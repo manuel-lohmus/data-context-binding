@@ -1,7 +1,7 @@
 {
   "name": "data-context-binding",
   "description": "Simple and lightweight solution for binding data to DOM elements.",
-  "version": "2.0.0-beta.6",
+  "version": "2.0.0-beta.7",
   "license": "MIT",
   "keywords": [
     "data",

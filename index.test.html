@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -56,7 +56,8 @@
                         DB.bindAllElements(testDiv);
                         check(input.value).mustBe('123');
                         input.value = 'abc';
-                        input.onchange();
+                        //input.onchange();
+                        input.dispatchEvent(new Event('change', {}));
                         check(datacontext[0].nr).mustBe('abc');
                         datacontext[0].nr = 123;
                         check(datacontext[0].nr).mustBe(123);
@@ -81,7 +82,8 @@
                         DB.bindAllElements(testDiv);
                         check(input.checked).mustBe(true);
                         input.checked = false;
-                        input.onchange();
+                        //input.onchange();
+                        input.dispatchEvent(new Event('change', {}));
                         check(datacontext[0].is).mustBe(false);
                         datacontext[0].is = true;
                         check(datacontext[0].is).mustBe(true);

@@ -1,5 +1,4 @@
-﻿
-/**  Copyright (c) 2024, Manuel Lõhmus (MIT License). */
+/**  Copyright (c) Manuel Lõhmus (MIT License). */
 
 "use strict";
 
@@ -211,7 +210,7 @@
                                 delete emitToParent.timeout;
 
                                 _this.emit("-change", { eventName: "-change", target: _this });
-                            }, 0, this);
+                            }, 10, this);
                         }
 
                         if ((eventName === '-' || eventName === '-change') &&
@@ -360,7 +359,7 @@
                     }
                 }
 
-                if (removeUnusedKeys && _typeof(target) === 'object') {
+                if (removeUnusedKeys && (_typeof(target) === 'object' || _typeof(target) === 'array')) {
 
                     Object.keys(target).forEach(function (k) {
 
@@ -469,10 +468,10 @@
                     }
 
                     target.emitToParent("-", { eventName, target, propertyPath: [property], oldValue, newValue });
+                    target.emit(property, { eventName, target, propertyPath: [property], oldValue, newValue });
 
                     setModified(target, property);
 
-                    target.emit(property, { eventName, target, propertyPath: [property], oldValue, newValue });
                     target.emitToParent("-change", { eventName: "-change", target });
 
                     return ret;
@@ -674,9 +673,22 @@
 
                 if (it.current === '\r' && it.following === '\r') {
 
-                    if (!def._isDataContext) { def = createDataContext(def); }
+                    if (!def._isDataContext) {
+
+                        def = createDataContext(def);
+                        def._isModified = true;
+                    }
+                    if (_typeof(val) === 'array') {
+
+                        val.length = 0;
+                    }
                     if (val?._events) { def._events = val._events; }
-                    if (val?._propertyName && val._parent) { val._parent[val._propertyName] = def; }
+                    if (val?._propertyName && val._parent) {
+
+                        def._parent = val._parent;
+                        def._propertyName = val._propertyName;
+                        val._parent[val._propertyName] = def;
+                    }
 
                     it.next();
                     it.next();
@@ -954,6 +966,20 @@
                             else {
 
                                 obj[k] = v;
+
+                                if (!v?._isDataContext && obj !== val && obj[k] === val?.[k]
+                                    || v?._isDataContext && !v.isChanged) {
+
+                                    if (obj?._isDataContext) {
+
+                                        obj._modified.splice(obj._modified.indexOf(k), 1);
+                                    }
+
+                                    if (v?._isDataContext) {
+
+                                        v._isModified = false;
+                                    }
+                                }
                             }
 
                             if (typeof obj[k] === 'object') {
@@ -1084,6 +1110,21 @@
                             arr.push(v);
                         }
 
+                        if (!v?._isDataContext && arr !== val
+                            && arr[typeof index === "number" && index || i] === val?.[typeof index === "number" && index || i]
+                            || v?._isDataContext && !v._modified.length) {
+
+                            if (arr?._isDataContext) {
+
+                                arr._modified.splice(arr._modified.indexOf(typeof index === "number" && index || i), 1);
+                            }
+
+                            if (v?._isDataContext) {
+
+                                v._isModified = false;
+                            }
+                        }
+
                         if (typeof arr[typeof index === "number" && index || i] === 'object') {
 
                             _setMetadata(arr[typeof index === "number" && index || i], meta);
@@ -1178,21 +1219,16 @@
          * @typedef {Object} Options
          * @property {boolean} modifiedData Select modified data. Optional.
          * @property {boolean} setUnmodified Set unmodified. Optional.
-         * @property {WriteStream} writeStream Write stream. Optional.
-         * @property {function} callback Callback. Optional.
          * @property {boolean} includeBOM Add the BOM to the beginning of the string. Optional.
          */
-        function stringify(value, replacer, space, { modifiedData = false, setUnmodified = false, writeStream = null, callback = null, includeBOM = false } = {}) {
+        function stringify(value, replacer, space, { modifiedData = false, setUnmodified = false, includeBOM = false } = {}) {
 
             // Define the BOM character
-            var BOM = String.fromCharCode(65279);
-            var strJSON = '';
-            var isStream = _isStream(writeStream);
-            var isModified = false;
-
+            var BOM = String.fromCharCode(65279),
+                strJSON = '',
+                isModified = false;
 
             replacer = _replacer(replacer);
-
             space = _space(space);
 
             if (typeof replacer === "function") {
@@ -1204,29 +1240,9 @@
                 );
             }
 
-            _value(value, 0, function () {
-
-
-                if (isStream) {
-
-                    writeStream.end();
-                }
-
-                if (typeof callback === "function") {
-
-                    callback(includeBOM && strJSON ? BOM + strJSON : strJSON || undefined);
-                }
-            });
+            _value(value, 0);
 
             return includeBOM && strJSON ? BOM + strJSON : strJSON || undefined;
-
-
-            function _isStream(obj) {
-
-                return Boolean(obj
-                    && typeof obj === "object"
-                    && typeof obj.writable === "boolean");
-            }
 
             function _replacer(replacer) {
 
@@ -1289,7 +1305,298 @@
                 else { space = undefined; }
 
                 return space;
-                ;
+            }
+
+            function _value(value, level) {
+
+
+                var type = _typeof(value);
+
+                _meta();
+
+                if (modifiedData) {
+
+                    //root
+                    if (!value?._parent) {
+
+                        _getValue();
+                    }
+                    //selec all
+                    else if (isModified) {
+
+                        _setUnmodified();
+                        _getValue();
+                    }
+
+                    else if (value?._isModified === true) {
+
+                        var isMod = isModified;
+                        isModified = true;
+                        _getValue();
+                        isModified = isMod;
+                        _setUnmodified();
+                    }
+                    //selec modified
+                    else {
+
+                        _setUnmodified();
+
+                        _getValue();
+                    }
+                }
+
+                else { _getValue(); }
+
+                return;
+
+
+                function _meta() {
+
+                    if (level === 0 || modifiedData && value?._parent && !isModified && value?._isModified === true) {
+
+                        return _metadata(value, level, '');
+                    }
+                }
+
+                function _setUnmodified() {
+
+                    if (modifiedData && setUnmodified
+                        && value?._isDataContext) {
+
+                        //set _isModified false
+                        if (value._isModified === true) { value._isModified = false; }
+
+                        //removing propertyName
+                        if (Array.isArray(value._parent?._modified)) {
+
+                            var index = value._parent._modified.indexOf(value._propertyName);
+
+                            if (index > -1) {
+                                value._parent._modified.splice(index, 1);
+                            }
+                        }
+                    }
+                }
+
+                function _getValue() {
+
+                    if (_object()) { return; }
+
+                    if (_string()) { return; }
+
+                    if (_bool()) { return; }
+
+                    if (_null()) { return; }
+
+                    if (_number()) { return; }
+                }
+
+                function _object(cb) {
+
+                    var startChar, isKeyVal, endChar;
+
+                    if (type === "object") { startChar = '{'; isKeyVal = true; endChar = "}"; }
+                    else if (type === "array") { startChar = '['; endChar = "]"; }
+
+                    if (startChar && endChar) {
+
+                        // signal of updating the entire object
+                        if (modifiedData && value._isModified) {
+
+                            startChar += '\r\r';
+                        }
+
+                        var keys = modifiedData && !value._isModified && !isModified
+                            ? Object.values(value._modified).sort()
+                            : Object.keys(value);
+
+                        if (type === "array") { keys = keys.filter(function (k) { return Number.isInteger(Number(k)) }); }
+
+                        // write emty object
+                        if (!keys.length) {
+
+                            if (modifiedData && !value._parent) { return true; }
+
+                            strJSON += startChar + endChar;
+
+                            return true;
+                        }
+
+                        // write startChar
+                        if (space) { startChar += startChar.includes("\r\r") ? "" : _newline(); }
+
+                        strJSON += startChar;
+
+                        var isMod = isModified;
+                        isModified = value._isModified;
+
+                        // write keyVal
+                        while (keys.length) {
+
+                            _writeMetaKeyVal(keys.shift());
+                        }
+
+                        strJSON += _newline();
+
+                        isModified = isMod;
+
+                        if (modifiedData) { value._isModified = false; }
+
+                        // write endChar
+                        strJSON += _lineSpace(endChar, level);
+
+                        return true;
+                    }
+
+                    return;
+
+
+                    function _writeMetaKeyVal(k) {
+
+                        var val = value[k];
+
+                        if (typeof replacer === "function") {
+
+                            val = replacer.call(
+                                value,
+                                k,
+                                val
+                            );
+                        }
+
+                        if (val?._isDataContext) {
+
+                            _metadata(val, level + 1, "");
+                        }
+                        else {
+
+                            _metadata(value, level + 1, k);
+                        }
+
+                        _writeKeyVal();
+
+                        return;
+
+
+                        function _writeKeyVal() {
+
+                            // minified array and modified data
+                            if (!space && !isKeyVal && modifiedData) { _writeKey(k + ':', true); }
+                            // minified array
+                            else if (!space && !isKeyVal) { _writeKey(''); }
+                            // minified object
+                            else if (!space && isKeyVal) { _writeKey('"' + k + '":'); }
+                            // array and modified data
+                            else if (!isKeyVal && modifiedData) { _writeKey(_lineSpace(k + ': ', level + 1), true); }
+                            // array
+                            else if (!isKeyVal) { _writeKey(_lineSpace('', level + 1)); }
+                            // object
+                            else { _writeKey(_lineSpace('"' + k + '": ', level + 1)); }
+
+                            return;
+
+
+                            function _writeKey(strKey, isStartTrim) {
+
+                                // write key
+                                strJSON += strKey;
+
+                                // write value
+                                _value(val, level + 1);
+
+                                // write separator
+                                strJSON += keys.length ? ',' + _newline() : '';
+
+                                setUnmodified();
+
+                                return;
+
+
+                                function setUnmodified() {
+
+                                    //set unmodified private val
+                                    if (modifiedData && setUnmodified) {
+
+                                        //removing propertyName
+                                        var index = value._modified.indexOf(k);
+
+                                        if (index > -1) {
+                                            value._modified.splice(index, 1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                function _string() {
+
+                    if (type === "string") {
+
+                        strJSON += '"' + value + '"' + '';
+
+                        return true;
+                    }
+                }
+
+                function _bool() {
+
+                    if (type === "boolean") {
+
+                        strJSON += value + '';
+
+                        return true;
+                    }
+                }
+
+                function _null() {
+
+                    if (type === "null") {
+
+                        strJSON += "null";
+
+                        return true;
+                    }
+                }
+
+                function _number() {
+
+                    if (type === "number") {
+
+                        strJSON += JSON.stringify(value);
+
+                        return true;
+                    }
+                }
+            }
+
+            function _metadata(value, level, key = "") {
+
+                if (ignoreMetadata || !value) { return; }
+
+                var i = 0;
+
+                key = key + "";
+                key = "-metadata" + (key ? "-" + key : "");
+
+                if (value[key] && !Array.isArray(value[key])) {
+
+                    Object.defineProperty(value, key, { value: [value[key]], enumerable: false });
+                }
+
+                if (modifiedData && !value._isModified) { return; }
+
+                while (value[key] && i < value[key].length) {
+
+                    // write line
+                    strJSON += _lineSpace(
+                        '/*' + value[key][i] + '*/' + _newline(),
+                        level
+                    );
+
+                    i++;
+                }
             }
 
             function _lineSpace(text, level) {
@@ -1320,366 +1627,6 @@
                 if (!space) { return ""; }
 
                 return "\n";
-            }
-
-            function _metadata(value, level, key = "", cb) {
-
-                if (ignoreMetadata || !value) { return cb(); }
-
-                var i = -1;
-
-                key = key + "";
-                key = "-metadata" + (key ? "-" + key : "");
-
-                if (value[key] && !Array.isArray(value[key])) {
-
-                    Object.defineProperty(value, key, { value: [value[key]], enumerable: false });
-                }
-
-                if (modifiedData && !value._isModified) {
-
-                    return cb();
-                }
-
-                write();
-
-                return;
-
-                function write() {
-
-                    i++;
-
-                    if (value[key] && i < value[key].length) {
-
-                        if (space) {
-
-                            // write line
-                            return _write(
-                                _lineSpace(
-                                    '/*' + value[key][i] + '*/' + _newline()
-                                    , level
-                                ),
-                                write
-                            );
-                        }
-
-                        // write line
-                        return _write('/*' + value[key][i] + '*/', write);
-                    }
-
-                    return cb();
-                }
-            }
-
-            function _value(value, level, cb) {
-
-
-                var type = _typeof(value);
-
-                _meta(function () {
-
-                    if (modifiedData) {
-
-                        //root
-                        if (!value?._parent) {
-
-                            _getValue(cb);
-                        }
-                        //selec all
-                        else if (isModified) {
-
-                            _setUnmodified();
-                            _getValue(cb);
-                        }
-
-                        else if (value?._isModified === true) {
-
-                            var isMod = isModified;
-                            isModified = true;
-                            _getValue(cb);
-                            isModified = isMod;
-                            _setUnmodified();
-                        }
-                        //selec modified
-                        else {
-
-                            _setUnmodified();
-
-                            _getValue(cb);
-                        }
-                    }
-                    else { _getValue(cb); }
-                });
-
-                return;
-
-
-                function _meta(cb) {
-
-                    if (level === 0
-                        || modifiedData && value?._parent && !isModified && value?._isModified === true) {
-
-                        return _metadata(value, level, '', cb);
-                    }
-
-                    return cb();
-                }
-
-                function _setUnmodified() {
-
-                    if (modifiedData && setUnmodified
-                        && value?._isDataContext) {
-
-                        //set _isModified false
-                        if (value._isModified === true) { value._isModified = false; }
-
-                        //removing propertyName
-                        if (Array.isArray(value._parent?._modified)) {
-
-                            var index = value._parent._modified.indexOf(value._propertyName);
-
-                            if (index > -1) {
-                                value._parent._modified.splice(index, 1);
-                            }
-                        }
-                    }
-                }
-
-                function _getValue(cb) {
-
-                    if (_object(cb)) { return; }
-
-                    if (_string(cb)) { return; }
-
-                    if (_bool(cb)) { return; }
-
-                    if (_null(cb)) { return; }
-
-                    if (_number(cb)) { return; }
-
-                    return cb();
-                }
-
-                function _string(cb) {
-
-                    if (type === "string") {
-
-                        _write('"' + value + '"' + '', cb);
-
-                        return true;
-                    }
-                }
-
-                function _number(cb) {
-
-                    if (type === "number") {
-
-                        _write(JSON.stringify(value), cb);
-
-                        return true;
-                    }
-                }
-
-                function _object(cb) {
-
-                    var startChar, isKeyVal, endChar;
-
-                    if (type === "object") { startChar = '{'; isKeyVal = true; endChar = "}"; }
-                    else if (type === "array") { startChar = '['; endChar = "]"; }
-
-                    if (startChar && endChar) {
-
-                        // signal of updating the entire object
-                        if (modifiedData && value._isModified) {
-
-                            startChar += '\r\r';
-                        }
-
-                        var keys = modifiedData && !value._isModified && !isModified
-                            ? Object.values(value._modified).sort()
-                            : Object.keys(value);
-
-                        // write emty object
-                        if (!keys.length) {
-
-                            if (modifiedData && !value._parent) { return true; }
-
-                            _write(startChar + endChar, cb);
-
-                            return true;
-                        }
-
-                        // write startChar
-                        if (space) {
-
-                            startChar += startChar.includes("\r\r") ? "" : _newline();
-                        }
-
-                        _write(startChar, function () {
-
-                            _writeValues(function () {
-
-                                if (space) {
-
-                                    return _write(_lineSpace(endChar, level), cb);
-                                }
-
-                                return _write(endChar, cb);
-                            });
-                        });
-
-                        return true;
-                    }
-
-                    return;
-
-
-                    function _writeValues(cb) {
-
-                        var isMod = isModified;
-                        isModified = value._isModified;
-
-                        _writeKeyValMeta(keys.shift(), _next);
-
-                        return;
-
-
-                        function _next() {
-
-                            if (keys.length) {
-
-                                _writeKeyValMeta(keys.shift(), _next);
-                            }
-                            else {
-
-                                isModified = isMod;
-
-                                if (modifiedData) { value._isModified = false; }
-
-                                _write(_newline(), cb);
-                            }
-                        }
-                    }
-
-                    function _writeKeyValMeta(k, cb) {
-
-                        var val = value[k];
-
-                        if (typeof replacer === "function") {
-
-                            val = replacer.call(
-                                value,
-                                k,
-                                val
-                            );
-                        }
-
-                        if (val?._isDataContext) {
-
-                            _metadata(val, level + 1, "", _writeKeyVal);
-                        }
-                        else {
-
-                            _metadata(value, level + 1, k, _writeKeyVal);
-                        }
-
-                        return;
-
-
-                        function _writeKeyVal() {
-
-                            // minified array and modified data
-                            if (!space && !isKeyVal && modifiedData) { _writeKey(k + ':', true); }
-                            // minified array
-                            else if (!space && !isKeyVal) { _writeKey(''); }
-                            // minified object
-                            else if (!space && isKeyVal) { _writeKey('"' + k + '":'); }
-                            // array and modified data
-                            else if (!isKeyVal && modifiedData) { _writeKey(_lineSpace(k + ': ', level + 1), true); }
-                            // array
-                            else if (!isKeyVal) { _writeKey(_lineSpace('', level + 1)); }
-                            // object
-                            else { _writeKey(_lineSpace('"' + k + '": ', level + 1)); }
-
-                            return;
-                        }
-
-                        function _writeKey(strKey, isStartTrim) {
-
-                            _write(strKey, function () {
-
-                                // write value
-                                _value(val, level + 1, function () {
-
-                                    // write separator
-                                    _write(keys.length ? ',' + _newline() : '', setUnmodified);
-
-                                    return;
-
-
-                                    function setUnmodified() {
-
-                                        //set unmodified private val
-                                        if (modifiedData && setUnmodified) {
-
-                                            //removing propertyName
-                                            var index = value._modified.indexOf(k);
-
-                                            if (index > -1) {
-                                                value._modified.splice(index, 1);
-                                            }
-                                        }
-
-                                        return cb();
-                                    }
-                                });
-                            });
-
-                            return;
-                        }
-                    }
-                }
-
-                function _bool(cb) {
-
-                    if (type === "boolean") {
-
-                        _write(value + '', cb);
-
-                        return true;
-                    }
-                }
-
-                function _null(cb) {
-
-                    if (type === "null") {
-
-                        _write("null", cb);
-
-                        return true;
-                    }
-                }
-            }
-
-            function _write(str, cb) {
-
-                if (!isStream) {
-
-                    strJSON += str;
-                    cb();
-                }
-                else if (str) {
-
-                    // write -> OK
-                    if (writeStream.write(str)) {
-
-                        cb();
-                    }
-                    else {
-
-                        writeStream.once('drain', cb);
-                    }
-                }
             }
         }
 
@@ -1720,22 +1667,28 @@
 
                 var isInitData = !fs.existsSync(filePath),
                     isFileProcessing = false,
-                    writeTimeout;
+                    writeTimeout,
+                    lastModifiedTime = Date.now();
 
                 if (!data) { data = createDataContext({}); }
                 if (!data._isDataContext) { data = createDataContext(data); }
 
-                fs.watchFile(filePath, (curr, prev) => { readFile(); });
+                fs.watchFile(filePath, (curr, prev) => {
+
+                    if (lastModifiedTime > curr.mtimeMs) { return; }
+
+                    readFileSync();
+                });
 
                 data.on('-change', (event) => {
 
-                    writeFile();
+                    writeFileSync();
 
                     // I am alive.
                     return true;
                 });
 
-                if (isInitData) { Promise.resolve().then(writeFile); }
+                if (isInitData) { Promise.resolve().then(writeFileSync); }
                 else { readFileSync(); }
 
                 return data;
@@ -1756,7 +1709,7 @@
                 }
                 function readFileSync() {
 
-                    if (!enableFileReadWrite) { return; }
+                    if (!enableFileReadWrite || !fs.existsSync(filePath)) { return; }
 
                     var str = fs.readFileSync(
                         filePath,
@@ -1764,34 +1717,6 @@
                     );
 
                     loadData(str);
-                }
-                function readFile() {
-
-                    if (!enableFileReadWrite) { return; }
-
-                    fs.access(filePath, fs.constants.R_OK, (err) => {
-
-                        if (err) { return; }
-
-                        wait(read);
-                    });
-
-                    function read() {
-
-                        isFileProcessing = true;
-
-                        fs.readFile(
-                            filePath,
-                            { encoding: 'utf8', flag: 'r' },
-                            function (err, str) {
-
-                                if (err) { throw err; }
-
-                                loadData(str);
-
-                                isFileProcessing = false;
-                            });
-                    }
                 }
                 function loadData(str) {
 
@@ -1820,7 +1745,7 @@
                         }
                     }
                 }
-                function writeFile() {
+                function writeFileSync() {
 
                     if (!enableFileReadWrite) { return; }
 
@@ -1829,7 +1754,7 @@
                     writeTimeout = setTimeout(function () {
 
                         wait(write);
-                    }, 500);
+                    }, 5000);
 
 
                     function write() {
@@ -1843,23 +1768,16 @@
 
                         isInitData = false;
 
-                        fs.writeFile(
-                            filePath,
-                            strJson,
-                            { encoding: 'utf8', flag: 'w', flush: true },
-                            (err) => {
+                        fs.writeFileSync(filePath, strJson, { encoding: 'utf8', flag: 'w', flush: true });
 
-                                if (err) throw err;
+                        //data.resetChanges();
+                        lastModifiedTime = Date.now();
+                        isFileProcessing = false;
 
-                                //data.resetChanges();
-                                isFileProcessing = false;
+                        if (onDataChange) {
 
-                                if (onDataChange) {
-
-                                    setTimeout(onDataChange, 0, { strChanges, strJson, datacontext: data });
-                                }
-                            }
-                        );
+                            setTimeout(onDataChange, 0, { strChanges, strJson, datacontext: data });
+                        }
                     }
                 }
                 function wait(cb) {
