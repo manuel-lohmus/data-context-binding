@@ -576,11 +576,11 @@
             }
             catch (e) {
 
-                throw "[ ERROR ] " + e
-                + " In parsing position: " + it.position + " '" + it.current + "' => "
+                throw ": In parsing position: " + it.position + " '" + it.current + "' => "
                 + it.text.substring(it.position < 10 ? 0 : it.position - 10, it.position + 10)
                     .replace(/\r/g, "\\r")
-                    .replace(/\n/g, "\\n");
+                    .replace(/\n/g, "\\n")
+                + "\n" + e.message + e.stack;
             }
 
             _setMetadata(value, meta);
@@ -671,31 +671,7 @@
 
             function _get(val, def) {
 
-                if (it.current === '\r' && it.following === '\r') {
-
-                    if (!def._isDataContext) {
-
-                        def = createDataContext(def);
-                        def._isModified = true;
-                    }
-                    if (_typeof(val) === 'array') {
-
-                        val.length = 0;
-                    }
-                    if (val?._events) { def._events = val._events; }
-                    if (val?._propertyName && val._parent) {
-
-                        def._parent = val._parent;
-                        def._propertyName = val._propertyName;
-                        val._parent[val._propertyName] = def;
-                    }
-
-                    it.next();
-                    it.next();
-
-                    return def;
-                }
-                else if (_typeof(val) !== _typeof(def)) {
+                if (_typeof(val) !== _typeof(def)) {
 
                     if (val?._isDataContext) {
 
@@ -914,6 +890,15 @@
 
                     it.next();
 
+                    var isNewObject = it.current === '\r' && it.following === '\r',
+                        keys = [];
+
+                    if (isNewObject) {
+
+                        it.next();
+                        it.next();
+                    }
+
                     var obj = _get(val, {});
 
                     _setMetadata(obj, meta);
@@ -936,6 +921,8 @@
                         }
 
                         var k = _key();
+
+                        keys.push(k);
 
                         _whitespace();
 
@@ -1003,6 +990,18 @@
                         it.next();
                     }
 
+                    if (isNewObject) {
+
+                        for (var k of Object.keys(obj)) {
+
+                            if (!keys.includes(k)) {
+
+                                delete obj[k];
+                                obj._isModified = true;
+                            }
+                        }
+                    }
+
                     return obj;
                 }
             }
@@ -1039,6 +1038,14 @@
                 if (it.current === '[') {
 
                     it.next();
+
+                    var isNewArray = it.current === '\r' && it.following === '\r';
+
+                    if (isNewArray) {
+
+                        it.next();
+                        it.next();
+                    }
 
                     var arr = _get(val, []);
 
@@ -1140,6 +1147,12 @@
                     if (it.current === ']') {
 
                         it.next();
+                    }
+
+                    if (isNewArray && val?.length > i) {
+
+                        val.length = i;
+                        arr._isModified = true;
                     }
 
                     return arr;

@@ -33,6 +33,8 @@
             hidden: { value: hiddenBind, writable: true, configurable: false, enumerable: false },
             enabled: { value: enabledBind, writable: true, configurable: false, enumerable: false },
             disabled: { value: disabledBind, writable: true, configurable: false, enumerable: false },
+            class: { value: classToggleBind, writable: true, configurable: false, enumerable: false },
+            attribute: { value: attributeBind, writable: true, configurable: false, enumerable: false },
 
             input: { value: valueBind, writable: true, configurable: false, enumerable: false },
             input_checkbox: { value: checkBind, writable: true, configurable: false, enumerable: false },
@@ -122,7 +124,7 @@
 
                 var parent = element.parentElement;
 
-                while (parent !== rootElement) {
+                while (parent && parent !== rootElement) {
 
                     if (parent.attributes.template || parent.attributes.link) { return true; }
 
@@ -284,11 +286,11 @@
                             if (!appendTemplate(keys[i])) { break; }
                         }
 
-                        if (i !== 0) {
+                        setTimeout(function () {
 
-                            setTimeout(function () {
+                            if (_bindingContext?.value?._isDataContext) {
 
-                                if (_bindingContext.value && typeof _bindingContext.value.on === "function") {
+                                if (isFunctionNotAdded('addTemplate')) {
 
                                     _bindingContext.value.on(
                                         "-",
@@ -303,6 +305,9 @@
                                         },
                                         element
                                     );
+                                }
+
+                                if (isFunctionNotAdded('removeTemplate')) {
 
                                     _bindingContext.value.on(
                                         "-",
@@ -321,15 +326,20 @@
                                         element
                                     );
                                 }
-                            });
+                            }
+                        });
 
-                            return;
-                        }
+                        return;
                     }
 
                     return appendTemplate();
 
 
+                    function isFunctionNotAdded(fnName) {
+
+                        return _bindingContext?.value?._events?.["-"]
+                            ?.find(function (fn) { return fn.name.includes(fnName); }) === undefined;
+                    }
                     function appendTemplate(key, target) {
 
                         var ret = false;
@@ -394,9 +404,21 @@
 
                     try {
 
-                        var fnName = element.attributes.bind.value;
+                        var fnName = element.attributes.bind.value,
+                            isValueInverted = false,
+                            bindArgs = [];
 
-                        if (!fnName) {
+                        if (fnName) {
+
+                            //!fnName(bindArg1,bindArg2,...)
+                            if (fnName.startsWith("!")) { isValueInverted = true; fnName = fnName.substring(1); }
+                            bindArgs = fnName.split(/[\(\)]/);
+                            fnName = bindArgs.shift().trim();
+                            if (bindArgs[0]) { bindArgs = bindArgs[0].split(/,/); }
+                            bindArgs = bindArgs.map(function (arg) { return arg.trim(); });
+                        }
+
+                        else {
 
                             fnName = element.tagName.toLowerCase();
 
@@ -423,15 +445,37 @@
 
                 function _bind(fnBind) {
 
-                    if (fnBind.call(element, { eventName: "bind", target: _bindingContext.source, propertyPath: [_bindingContext.property], oldValue: _bindingContext.value, newValue: _bindingContext.value })) {
+                    fnBind = (function (fn) {
+
+                        return function (event) {
+
+                            if (element.contextValue?.() === undefined) {
+
+                                element.setAttribute("unbinded", "");
+                                event.named = "unbind";
+                            }
+                            else { element.removeAttribute("unbinded"); }
+
+                            return fn.call(this, event);
+                        };
+
+                    })(fnBind);
+
+                    if (fnBind.call(element, {
+                        eventName: "bind",
+                        isValueInverted,
+                        bindArgs,
+                        target: _bindingContext.source,
+                        propertyPath: [_bindingContext.property],
+                        oldValue: _bindingContext.value,
+                        newValue: _bindingContext.value
+                    })) {
 
                         if (_bindingContext.source && typeof _bindingContext.source.on === "function") {
 
-                            element.removeAttribute("unbinded");
-
                             _bindingContext.source.on(
                                 _bindingContext.property,
-                                function (event) { return fnBind.call(element, event); },
+                                fnBind.bind(element),
                                 element
                             );
                         }
@@ -915,7 +959,16 @@
                 return false;
             }
 
-            this.contextValue() ? this.removeAttribute("hidden") : this.setAttribute("hidden", "");
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+            }
+
+            updateAttributeBinding.call(this,
+                this.isValueInverted ? this.contextValue() : !this.contextValue(),
+                'hidden',
+                'hidden'
+            );
 
             // I am alive!
             return this.contextValue() === undefined ? false : true;
@@ -928,7 +981,16 @@
                 return false;
             }
 
-            this.contextValue() ? this.setAttribute("hidden", "") : this.removeAttribute("hidden");
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+            }
+
+            updateAttributeBinding.call(this,
+                this.isValueInverted ? !this.contextValue() : this.contextValue(),
+                'hidden',
+                'hidden'
+            );
 
             // I am alive!
             return this.contextValue() === undefined ? false : true;
@@ -991,6 +1053,16 @@
                 return false;
             }
 
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+            }
+
+            updateAttributeBinding.call(this,
+                this.isValueInverted ? this.contextValue() : !this.contextValue(),
+                'disabled',
+                'disabled'
+            );
             if (this.contextValue()) { this.removeAttribute('disabled'); }
             else { this.setAttribute('disabled', 'disabled'); }
 
@@ -1007,13 +1079,107 @@
                 return false;
             }
 
-            if (this.contextValue()) { this.setAttribute('disabled', 'disabled'); }
-            else { this.removeAttribute('disabled'); }
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+            }
+
+            updateAttributeBinding.call(this,
+                this.isValueInverted ? !this.contextValue() : this.contextValue(),
+                'disabled',
+                'disabled'
+            );
+
+            // I am alive!
+            return this.contextValue() === undefined ? false : true;
+        };
+        function classToggleBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                toggle(this, false);
+
+                // I am dead!
+                return false;
+            }
+
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+
+                if (event.bindArgs.length > 1) {
+
+                    this.primaryClasses = parseClassNames(event.bindArgs[0]);
+                    this.secondaryClasses = parseClassNames(event.bindArgs[1]);
+                }
+                else {
+
+                    this.primaryClasses = parseClassNames(event.bindArgs[0]);
+                    this.secondaryClasses = [];
+                }
+            }
+
+            toggle(this, this.isValueInverted ? !this.contextValue() : this.contextValue());
 
             // I am alive!
             return true;
-        };
 
+
+            function parseClassNames(classNames) {
+
+                return classNames
+                    .split(/\s/)
+                    .filter(function (c) { return c; });
+            }
+            function toggle(element, isPrimary) {
+
+                if (isPrimary) {
+                    element.primaryClasses.forEach(function (c) { element.classList.add(c); });
+                    element.secondaryClasses.forEach(function (c) { element.classList.remove(c); });
+                }
+                else {
+                    element.primaryClasses.forEach(function (c) { element.classList.remove(c); });
+                    element.secondaryClasses.forEach(function (c) { element.classList.add(c); });
+                }
+            }
+        }
+        function attributeBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                updateAttributeBinding.call(this, false, this.attributeBindingName, this.attributeBindingValue);
+
+                // I am dead!
+                return false;
+            }
+
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+                this.attributeBindingName = event.bindArgs[0] || '';
+                this.attributeBindingValue = event.bindArgs[1] || '';
+            }
+
+            updateAttributeBinding.call(this,
+                this.isValueInverted ? !this.contextValue() : this.contextValue(),
+                this.attributeBindingName,
+                this.attributeBindingValue
+            );
+
+            // I am alive!
+            return this.contextValue() === undefined ? false : true;
+        }
+
+
+        function updateAttributeBinding(isEnabled, attributeName, attributeValue = '') {
+
+            if (attributeName) {
+
+                if (isEnabled) { this.setAttribute(attributeName, attributeValue); }
+
+                else { this.removeAttribute(attributeName); }
+            }
+        }
 
         //#endregion
     });
