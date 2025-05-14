@@ -6,8 +6,8 @@
 
     exportModule("data-context", function factory() {
 
-        //var isDebug = true;
-        var ignoreMetadata = false;
+        var isDebug = this.document && Array.from(document.scripts).find(function (s) { return s.src.includes('data-context-binding'); })?.attributes.debug || false,
+            ignoreMetadata = false;
 
         /**
          * Create a new proxy object with the same structure as the original object. 
@@ -386,19 +386,6 @@
 
                 var ret = Reflect.deleteProperty(target, property);
 
-                //if (oldValue === undefined) {
-
-                //    //console.log("? del: oldValue is undefined", property, { target, propertyPath: [property], oldValue, newValue });
-                //}
-                ////else if (oldValue._parent === null) {
-
-                ////    //console.log("'-delete' del: oldValue._parent is null", property, { target, propertyPath: [property], oldValue, newValue });
-                ////}
-                //else {
-
-                //    //console.log("'-delete' del: oldValue is ", property, event);
-                //}
-
                 target.emitToParent("-", { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
 
                 if (Array.isArray(target)) {
@@ -421,7 +408,7 @@
                     }
                 }
 
-                target.emitToParent(property, { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
+                target.emit(property, { eventName: "delete", target, propertyPath: [property], oldValue, newValue });
                 target.emitToParent("-change", { eventName: "-change", target });
 
                 return ret;
@@ -436,7 +423,7 @@
                 || target[property] === undefined) {
 
                 var oldValue = target[property],
-                    newValue = newValue && newValue._isDataContext ? newValue : createDataContext(newValue, property);
+                    newValue = newValue && newValue._isDataContext ? newValue : createDataContext(newValue);
 
 
                 if (oldValue !== newValue) {
@@ -448,17 +435,11 @@
                     var isDC = newValue?._isDataContext;
                     var isNew = oldValue === undefined;
 
-                    if (isDC) {
-                        newValue._isModified = true;
-                        newValue._parent = proxy;
-                        newValue._propertyName = property;
-                    }
-
                     if (isNew) {
                         //console.log("'-new' set: oldValue is undefined", property, event);
                         eventName = "new";
                     }
-                    else if (isDC && typeof newValue._propertyName === 'string' && newValue._propertyName !== property) {
+                    else if (isDC && newValue._propertyName !== null && newValue._propertyName !== property) {
                         //console.log("'-reposition' set: newValue propertyName is change ", newValue + "", ">", property, event);
                         eventName = "reposition";
                     }
@@ -469,6 +450,12 @@
 
                     target.emitToParent("-", { eventName, target, propertyPath: [property], oldValue, newValue });
                     target.emit(property, { eventName, target, propertyPath: [property], oldValue, newValue });
+
+                    if (isDC) {
+                        newValue._isModified = true;
+                        newValue._parent = proxy;
+                        newValue._propertyName = property;
+                    }
 
                     setModified(target, property);
 
@@ -953,20 +940,6 @@
                             else {
 
                                 obj[k] = v;
-
-                                if (!v?._isDataContext && obj !== val && obj[k] === val?.[k]
-                                    || v?._isDataContext && !v.isChanged) {
-
-                                    if (obj?._isDataContext) {
-
-                                        obj._modified.splice(obj._modified.indexOf(k), 1);
-                                    }
-
-                                    if (v?._isDataContext) {
-
-                                        v._isModified = false;
-                                    }
-                                }
                             }
 
                             if (typeof obj[k] === 'object') {
@@ -1072,11 +1045,7 @@
 
                         if (isOverwriting && index === undefined) {
 
-                            if (typeof isDebug === 'boolean' && isDebug) {
-
-                                throw "Overwriting data -> array index must be.";
-                            }
-                            console.warn("Overwriting data -> array index must be.");
+                            pWarn("Overwriting data -> array index must be.");
                             index = i;
                         }
 
@@ -1115,21 +1084,6 @@
                         else {
 
                             arr.push(v);
-                        }
-
-                        if (!v?._isDataContext && arr !== val
-                            && arr[typeof index === "number" && index || i] === val?.[typeof index === "number" && index || i]
-                            || v?._isDataContext && !v._modified.length) {
-
-                            if (arr?._isDataContext) {
-
-                                arr._modified.splice(arr._modified.indexOf(typeof index === "number" && index || i), 1);
-                            }
-
-                            if (v?._isDataContext) {
-
-                                v._isModified = false;
-                            }
                         }
 
                         if (typeof arr[typeof index === "number" && index || i] === 'object') {
@@ -1754,7 +1708,7 @@
 
                         if (typeof isDebug === 'boolean' && isDebug) {
 
-                            console.error(err);
+                            pError(err);
                         }
                     }
                 }
@@ -1829,6 +1783,11 @@
                 set: function (val) { ignoreMetadata = Boolean(val); }
             }
         });
+
+        // Debugging
+        function pDebug(...args) { if (isDebug) { console.log(`[ DEBUG ] `, ...args); } }
+        function pWarn(...args) { if (isDebug) { console.warn(`[ WARN ] `, ...args); } }
+        function pError(...args) { if (isDebug) { console.error(`[ ERROR ] `, ...args); } }
 
         return createDataContext;
     });

@@ -4,16 +4,17 @@
 
 (function () {
 
-    exportModule("data-context-binding", ["data-context"], function factory(DC) {
+    exportModule('data-context-binding', ['data-context'], function factory(DC) {
 
         var globalScope = this,
-            { createDataContext, parse, stringify } = DC;
+            { createDataContext, parse, stringify } = DC,
+            isDebug = document && Array.from(document.scripts).find(function (s) { return s.src.includes('data-context-binding'); })?.attributes.debug || false;
 
 
         //TODO [ x ] default bind ...
         //TODO [ x ] template binding
         //TODO [ x ] Event > : 'new', 'set', 'reposition', 'delete', '-change', 'bind', 'unbind'
-        //TODO [ x ] DOM Attribute: 'path', 'bind', 'unbinded'
+        //TODO [ x ] DOM Attribute: 'path', 'bind', 'unbinded', 'template', 'templates', 'rebinding', 'onbind', 'link'
 
         var DataContextBinding = Object.defineProperties(bindDataContext, {
 
@@ -23,6 +24,7 @@
             bindElement: { value: bindElement, writable: false, configurable: false, enumerable: false },
             bindingContext: { value: bindingContext, writable: false, configurable: false, enumerable: false },
 
+            context: { value: contextBind, writable: false, configurable: false, enumerable: false },
             change: { value: changeBind, writable: false, configurable: false, enumerable: false },
             innerHTML: { value: innerHTMLBind, writable: true, configurable: false, enumerable: false },
             value: { value: valueBind, writable: true, configurable: false, enumerable: false },
@@ -70,7 +72,7 @@
          */
         function bindDataContext(value) {
 
-            var htmlElement = document.querySelector("html");
+            var htmlElement = document.documentElement;
 
             if (htmlElement) {
 
@@ -89,6 +91,8 @@
                 }
             }
 
+            globalScope.datacontext = htmlElement?.datacontext;
+
             return htmlElement?.datacontext;
         }
 
@@ -102,24 +106,34 @@
 
         function bindAllElements(rootElement, rebinding = false) {
 
-            if (!rootElement) { rootElement = document.querySelector("html"); }
+            if (!rootElement) { rootElement = document.documentElement; }
 
             bindElement(rootElement, rebinding);
 
-            rootElement.querySelectorAll(`[bind],[onbind],[template],[templates],[rebinding],[link]`)
-                .forEach(function (element) {
+            rootElement
+                .querySelectorAll(`[bind],[onbind],[template],[templates],[rebinding],[link],[unbinded]`)
+                .forEach(bind);
 
-                    if (isParentTemplateOrLink(element)) { return; }
+            if (rootElement !== document.documentElement) {
 
-                    if (!element.contextValue || rebinding) {
+                document
+                    .documentElement.querySelectorAll(`[unbinded]`)
+                    .forEach(bind);
+            }
 
-                        Promise.resolve(1).then((function (element, rebinding) {
 
-                            bindElement(element, rebinding);
-                        })(element, rebinding));
-                    }
-                });
+            function bind(element) {
 
+                if (isParentTemplateOrLink(element)) { return; }
+
+                if (!element.contextValue || rebinding || element.attributes.unbinded) {
+
+                    Promise.resolve(1).then((function (element, rebinding) {
+
+                        bindElement(element, rebinding);
+                    })(element, Boolean(rebinding || element.attributes.unbinded)));
+                }
+            }
             function isParentTemplateOrLink(element) {
 
                 var parent = element.parentElement;
@@ -132,19 +146,6 @@
                 }
                 return false;
             }
-        }
-
-        function rebindAllElements(rootElement) {
-
-            if (!rootElement) { rootElement = document.body; }
-
-            bindElement(rootElement);
-
-            rootElement.querySelectorAll("[rebinding]")
-                .forEach(function (element) { bindElement(element); });
-            // TODO [   ] test
-            document.head.querySelectorAll("[rebinding]")
-                .forEach(function (element) { bindElement(element); });
         }
 
         function bindElement(element, rebinding = false) {
@@ -207,10 +208,8 @@
 
                 if (CreateLink) {
 
-                    //element.setAttribute("linked", path);
-                    //element.removeAttribute("link");
                     element.linked = true;
-                    element.wsLink = WsUser.CreateLink(path, element);
+                    element.wsLink = CreateLink(path, element);
                     element.wsLink.bindAllElements = function (elem, rebind = false) { bindAllElements(elem, rebind); };
                 }
             }
@@ -443,25 +442,24 @@
 
                 return;
 
+
                 function _bind(fnBind) {
 
-                    fnBind = (function (fn) {
+                    var _fnBind = function _fnBind(event) {
 
-                        return function (event) {
+                        if (_bindingContext.value === undefined && element.isConnected) {
 
-                            if (element.contextValue?.() === undefined) {
+                            element.setAttribute("unbinded", "");
+                            event.eventName = "unbind";
+                        }
 
-                                element.setAttribute("unbinded", "");
-                                event.named = "unbind";
-                            }
-                            else { element.removeAttribute("unbinded"); }
+                        return fnBind.call(element, event);
+                    };
 
-                            return fn.call(this, event);
-                        };
+                    _fnBind.element = element;
+                    element.removeAttribute("unbinded");
 
-                    })(fnBind);
-
-                    if (fnBind.call(element, {
+                    if (_fnBind.call(element, {
                         eventName: "bind",
                         isValueInverted,
                         bindArgs,
@@ -475,7 +473,7 @@
 
                             _bindingContext.source.on(
                                 _bindingContext.property,
-                                fnBind.bind(element),
+                                _fnBind,
                                 element
                             );
                         }
@@ -485,7 +483,7 @@
 
             function _error(...args) {
 
-                console.log(args, element);
+                pDebug(args, element);
             }
         }
 
@@ -553,6 +551,8 @@
                 isActive: { value: _isActive, writable: false, configurable: false, enumerable: false },
 
                 remove: { value: _remove, writable: false, configurable: false, enumerable: false },
+
+                removeParent: { value: _removeParent, writable: false, configurable: false, enumerable: false }
             });
 
             elem.contextValue = _bindingContext.contextValue;
@@ -749,22 +749,31 @@
 
                 if (Array.isArray(_bindingContext.source)) {
 
-                    var index = _bindingContext.source.indexOf(_bindingContext.value);
-
-                    if (index > -1) {
-
-                        _bindingContext.source.splice(index, 1);
-                    }
+                    _bindingContext.source.splice(_bindingContext.property, 1);
                 }
                 else {
 
-                    delete _bindingContext.source[_bindingContext.property]
+                    delete _bindingContext.source[_bindingContext.property];
+                }
+            }
+
+            function _removeParent() {
+
+                if (Array.isArray(_bindingContext.source._parent)) {
+
+                    var index = _bindingContext.source._propertyName;
+
+                    _bindingContext.source._parent.splice(index, 1);
+                }
+                else {
+
+                    delete _bindingContext.source._parent[_bindingContext.source._propertyName];
                 }
             }
 
             function _error(...args) {
 
-                console.log(args, d.rootElement);
+                pDebug(args, d.rootElement);
             }
         }
 
@@ -772,8 +781,21 @@
 
             if (event.eventName === "delete") {
 
-                //debugger;
-                rebinding(event.oldValue);
+                var deletePropPath = event.propertyPath.join(".");
+
+                if (event.target._events[deletePropPath]) {
+
+                    var current_events = event.oldValue._events;
+                    event.oldValue._events = event.target._events[deletePropPath];
+                    emitProperties(event.newValue, event.oldValue, event.eventName);
+                    delete event.target._events[deletePropPath];
+                    event.oldValue._events = current_events;
+                }
+
+                else {
+
+                    emitProperties(event.newValue, event.oldValue, event.eventName);
+                }
 
                 return true;
             }
@@ -782,18 +804,29 @@
 
             if (event.eventName === "set") {
 
-                //debugger;
-                event.newValue._events = event.oldValue._events || {};
-                event.oldValue._events = {};
+                event.newValue._events = event.oldValue._events;
 
                 emitProperties(event.newValue, event.oldValue, event.eventName);
             }
 
             else if (event.eventName === "reposition") {
 
-                //debugger;
-                rebinding(event.newValue);
-                rebinding(event.oldValue);
+                var currentPropPath = event.propertyPath.join(".");
+                var newPropPath = event.target._propertyName + "." + event.newValue._propertyName;
+
+                event.target._events[newPropPath] = event.newValue._events;
+
+                if (event.target._events[currentPropPath]) {
+
+                    event.newValue._events = event.target._events[currentPropPath];
+                    delete event.target._events[currentPropPath];
+                }
+                else {
+
+                    event.newValue._events = event.oldValue._events || {};
+                }
+
+                emitProperties(event.newValue, event.oldValue, event.eventName);
             }
 
             //else if (event.eventName === "new") { debugger; }
@@ -803,39 +836,16 @@
 
             function emitProperties(newValue, oldValue, eventName) {
 
-                if (newValue?.emit) {
+                var value = eventName === 'delete' ? oldValue : newValue; 
 
-                    Object.keys(newValue).forEach(function (k) {
+                if (value?.emit) {
 
-                        newValue.emit(k, { eventName, target: newValue, propertyPath: [k], oldValue: oldValue[k], newValue: newValue[k] });
-                        emitProperties(newValue[k], oldValue[k], eventName);
+                    Object.keys(value).forEach(function (k) {
+
+                        value.emit(k, { eventName, target: value, propertyPath: [k], oldValue: oldValue?.[k], newValue: newValue?.[k] });
+                        emitProperties(newValue?.[k], oldValue?.[k], eventName);
                     });
                 }
-            }
-
-            function rebinding(val) {
-
-                if (val?._events) {
-
-                    Object.keys(val._events).forEach(function (k) {
-
-                        val._events[k].forEach(function (l) {
-
-                            if (l.isActive instanceof Node) {
-
-                                l.isActive.setAttribute("rebinding", "");
-                                l.isActive = false;
-                            }
-                        });
-                    });
-                    val._events = {};
-                }
-
-                clearTimeout(rebindAllElements.timeout);
-                rebindAllElements.timeout = setTimeout(function () {
-                    //console.log("RebindingAll");
-                    rebindAllElements();
-                });
             }
         }
 
@@ -843,6 +853,10 @@
 
         //#region *** Default bind ***
 
+        function contextBind(event) {
+
+            return false;
+        }
         function innerHTMLBind(event) {
 
             if (event?.eventName === "unbind") {
@@ -1182,6 +1196,10 @@
         }
 
         //#endregion
+
+        // Debugging
+        function pDebug(...args) { if (isDebug) { console.log(`[ DEBUG ] `, ...args); } }
+        function pError(...args) { if (isDebug) { console.error(`[ ERROR ] `, ...args); } }
     });
 
 
