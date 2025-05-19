@@ -15,6 +15,7 @@
         //TODO [ x ] template binding
         //TODO [ x ] Event > : 'new', 'set', 'reposition', 'delete', '-change', 'bind', 'unbind'
         //TODO [ x ] DOM Attribute: 'path', 'bind', 'unbinded', 'template', 'templates', 'rebinding', 'onbind', 'link'
+        //TODO [ x ] rootDataContext: '#' > document.documentElement.datacontext // bind to root data context
 
         var DataContextBinding = Object.defineProperties(bindDataContext, {
 
@@ -24,6 +25,7 @@
             bindElement: { value: bindElement, writable: false, configurable: false, enumerable: false },
             bindingContext: { value: bindingContext, writable: false, configurable: false, enumerable: false },
 
+            progess: { value: progessBind, writable: false, configurable: false, enumerable: false },
             context: { value: contextBind, writable: false, configurable: false, enumerable: false },
             change: { value: changeBind, writable: false, configurable: false, enumerable: false },
             innerHTML: { value: innerHTMLBind, writable: true, configurable: false, enumerable: false },
@@ -104,11 +106,11 @@
                 setTimeout(waitForReadyState, 0, state, cb);
         }
 
-        function bindAllElements(rootElement, rebinding = false) {
+        function bindAllElements(rootElement, rebinding = false, isChildrenOnly = false) {
 
             if (!rootElement) { rootElement = document.documentElement; }
 
-            bindElement(rootElement, rebinding);
+            if (!isChildrenOnly) { bindElement(rootElement, rebinding); }
 
             rootElement
                 .querySelectorAll(`[bind],[onbind],[template],[templates],[rebinding],[link],[unbinded]`)
@@ -202,7 +204,12 @@
 
             function _link(path) {
 
-                if (element.linked) { return; }
+                if (element.linked) {
+
+                    if (rebinding) { bindAllElements(element, true, true); }
+
+                    return;
+                }
 
                 var { CreateLink } = globalScope?.modules?.['ws-user'];
 
@@ -210,13 +217,21 @@
 
                     element.linked = true;
                     element.wsLink = CreateLink(path, element);
-                    element.wsLink.bindAllElements = function (elem, rebind = false) { bindAllElements(elem, rebind); };
                 }
             }
 
             function _template(selectors, isMultiple = false) {
 
                 if (!selectors) { _tryBind(); return; }
+
+                var templateElement = null;
+
+                try { templateElement = element.querySelector(selectors) || document.querySelector(selectors); }
+                catch { templateElement = null; }
+
+                if (!templateElement && element.attributes.template_fetching) { return; }
+
+                element.removeAttribute('template_fetching');
 
                 //remove element children
                 var i = 0;
@@ -232,11 +247,6 @@
                     else { i++; }
                 }
 
-                var templateElement = null;
-
-                try { templateElement = element.querySelector(selectors) || document.querySelector(selectors); }
-                catch { templateElement = null; }
-
 
                 if (!templateElement) { return fetchContent(); }
 
@@ -245,6 +255,8 @@
                 return;
 
                 function fetchContent() {
+
+                    element.setAttribute('template_fetching', '');
 
                     fetch(selectors).then(function (res) {
 
@@ -255,6 +267,8 @@
                                 ? templateElement.innerHTML = textContent
                                 : templateElement.innerHTML = '<div>' + encodeHTML(textContent) + '</div>';
                             bindTemplate();
+
+                            element.removeAttribute('template_fetching');
                         });
                     });
 
@@ -289,7 +303,7 @@
 
                             if (_bindingContext?.value?._isDataContext) {
 
-                                if (isFunctionNotAdded('addTemplate')) {
+                                if (isFunctionNotAdded('addTemplate', element)) {
 
                                     _bindingContext.value.on(
                                         "-",
@@ -306,7 +320,7 @@
                                     );
                                 }
 
-                                if (isFunctionNotAdded('removeTemplate')) {
+                                if (isFunctionNotAdded('removeTemplate', element)) {
 
                                     _bindingContext.value.on(
                                         "-",
@@ -334,10 +348,15 @@
                     return appendTemplate();
 
 
-                    function isFunctionNotAdded(fnName) {
+                    function isFunctionNotAdded(fnName, element) {
 
                         return _bindingContext?.value?._events?.["-"]
-                            ?.find(function (fn) { return fn.name.includes(fnName); }) === undefined;
+                            ?.find(function (fn) {
+
+                                return fn.name.includes(fnName)
+                                    && fn.isActive === element;
+
+                            }) === undefined;
                     }
                     function appendTemplate(key, target) {
 
@@ -503,7 +522,8 @@
                 source: null,
                 property: null,
                 arrPath: []
-            };
+            },
+                isMultiple = Boolean(elem.attributes.templates);
 
             _findPathAndSource();
             _selectSource();
@@ -573,6 +593,12 @@
                         );
                     }
 
+                    if (d.arrPath.at(-1) === '#') {
+
+                        d.source = document.documentElement.datacontext;
+                        d.arrPath.pop();
+                    }
+
                     if (d.rootElement.datacontext !== undefined) {
 
                         d.source = d.rootElement.datacontext;
@@ -606,7 +632,7 @@
                     d.source = _nextSource(d, arrPath.pop(), {});
                 }
 
-                _nextSource(d, d.property, "");
+                _nextSource(d, d.property, isMultiple ? [] : "");
             }
 
             function _nextSource(d, property, defValue) {
@@ -647,6 +673,15 @@
                 if (!d.source || !d.source._isDataContext) { return; }
 
                 if (d.source[property]?._isDataContext) { return d.source[property]; }
+
+                if (isMultiple) {
+
+                    d.source[property] = createDataContext(Array.isArray(d.source[property]) ? d.source[property] : []);
+
+                    setTimeout(function () { bindElement(d.rootElement, true); });
+
+                    return d.source[property];
+                }
 
                 if (d.source[property] !== undefined) {
 
@@ -804,7 +839,10 @@
 
             if (event.eventName === "set") {
 
-                event.newValue._events = event.oldValue._events;
+                if (event.oldValue?._isDataContext) {
+
+                    event.newValue._events = event.oldValue._events;
+                }
 
                 emitProperties(event.newValue, event.oldValue, event.eventName);
             }
@@ -853,6 +891,55 @@
 
         //#region *** Default bind ***
 
+        function progessBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                if (this.wsLink) {
+
+                    this.wsLink.onreadystate = null;
+                }
+            }
+
+            if (event.eventName === "bind") {
+
+                this.isValueInverted = event.isValueInverted;
+                this.attributeBindingName = event.bindArgs[0] || '';
+                this.attributeBindingValue = event.bindArgs[1] || '';
+
+                var parent = this.parentElement;
+
+                while (!this.wsLink && parent) {
+
+                    this.wsLink = parent.wsLink;
+                    parent = parent.parentElement;
+                }
+
+                if (this.wsLink) {
+
+                    this.wsLink.onreadystate = handleReadyState.bind(this);
+                }
+
+                handleReadyState.call(this, this.wsLink?.readyState);
+            }
+
+            // I am alive!
+            return this.isConnected;
+
+            function handleReadyState(wsState) {
+
+                if (!this.isConnected) {
+
+                    this.wsLink.onreadystate = null;
+                    return;
+                }
+
+                wsState = wsState === 1;
+                wsState = this.isValueInverted ? !wsState : wsState;
+
+                updateAttributeBinding.call(this, wsState, this.attributeBindingName, this.attributeBindingValue);
+            }
+        }
         function contextBind(event) {
 
             return false;
@@ -1148,12 +1235,12 @@
             function toggle(element, isPrimary) {
 
                 if (isPrimary) {
-                    element.primaryClasses.forEach(function (c) { element.classList.add(c); });
-                    element.secondaryClasses.forEach(function (c) { element.classList.remove(c); });
+                    element.primaryClasses?.forEach(function (c) { element.classList.add(c); });
+                    element.secondaryClasses?.forEach(function (c) { element.classList.remove(c); });
                 }
                 else {
-                    element.primaryClasses.forEach(function (c) { element.classList.remove(c); });
-                    element.secondaryClasses.forEach(function (c) { element.classList.add(c); });
+                    element.primaryClasses?.forEach(function (c) { element.classList.remove(c); });
+                    element.secondaryClasses?.forEach(function (c) { element.classList.add(c); });
                 }
             }
         }
