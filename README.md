@@ -1,11 +1,19 @@
+<div class="row w-100">
+<div class="col-12 text-center">
 
+# Data Context Binding
+
+Simple and lightweight solution for binding data to DOM elements.<br>
+This manual is also available in [HTML5](https://manuel-lohmus.github.io/data-context-binding/README.html).
+
+</div>
+</div> 
 <div class="row w-100">
 <div class="col-lg-3 d-lg-inline">
 <div class="sticky-top overflow-auto vh-lg-100">
 <div id="list-headers" class="list-group mt-2 ms-lg-2 ms-4">
 
 #### Table of contents
-- [**Data Context Binding**](#data-context-binding)
 - [**Introduction**](#introduction)
 - [**Features**](#features)
 - [**Testing**](#testing)
@@ -20,16 +28,15 @@
 <div class="col-lg-9 mt-2">
 <div class="ps-4 markdown-body" data-bs-spy="scroll" data-bs-target="#list-headers" data-bs-offset="0" tabindex="0">
 
-# Data Context Binding
-
-Simple and lightweight solution for binding data to DOM elements.<br>
-This manual is also available in [HTML5](https://manuel-lohmus.github.io/data-context-binding/README.html).
 
 ## Introduction
 
-Data context binding library for browser.<br>
-This library is a simple and lightweight solution for binding data to DOM elements.<br>
-Used when building a **single-page application** (**SPA**), this library offers a modern approach.<br>
+Data context binding library for browser.
+This library is a simple and lightweight solution for binding data to DOM elements.
+Used when building a **single-page application** (**SPA**), this library offers a modern approach.
+This module is part of the ['conextra'](https://www.npmjs.com/package/conextra) framework,
+which is a simple and easy-to-use single-page application (SPA) framework.
+You have to try it! A different solution than MVC (model–view–controller).
 
 **frontend workflow**: data > 
 ['data-context'](https://www.npmjs.com/package/data-context) > 
