@@ -7,8 +7,10 @@
     exportModule('data-context-binding', ['data-context'], function factory(DC) {
 
         var globalScope = this,
-            { createDataContext, parse, stringify } = DC,
-            isDebug = document && Array.from(document.scripts).find(function (s) { return s.src.includes('data-context-binding'); })?.attributes.debug || false;
+            { createDataContext, parse, stringify, syncData } = DC,
+            script = this.document && Array.from(document.scripts).find(function (s) { return s.src.includes('data-context-binding'); }),
+            isDebug = script?.attributes.debug || false,
+            dataUrl = script?.attributes?.dataUrl?.value || '';
 
 
         //TODO [ x ] default bind ...
@@ -24,6 +26,7 @@
             bindAllElements: { value: bindAllElements, writable: false, configurable: false, enumerable: false },
             bindElement: { value: bindElement, writable: false, configurable: false, enumerable: false },
             bindingContext: { value: bindingContext, writable: false, configurable: false, enumerable: false },
+            loadDataUrl: { value: loadDataUrl, writable: false, configurable: false, enumerable: false },
 
             progess: { value: progessBind, writable: false, configurable: false, enumerable: false },
             context: { value: contextBind, writable: false, configurable: false, enumerable: false },
@@ -39,6 +42,7 @@
             disabled: { value: disabledBind, writable: true, configurable: false, enumerable: false },
             class: { value: classToggleBind, writable: true, configurable: false, enumerable: false },
             attribute: { value: attributeBind, writable: true, configurable: false, enumerable: false },
+            property: { value: propertyBind, writable: true, configurable: false, enumerable: false },
 
             input: { value: valueBind, writable: true, configurable: false, enumerable: false },
             input_checkbox: { value: checkBind, writable: true, configurable: false, enumerable: false },
@@ -76,26 +80,61 @@
 
             var htmlElement = document.documentElement;
 
-            if (htmlElement) {
+            if (value !== undefined) {
 
-                if (value !== undefined) {
-
-                    htmlElement.datacontext = value._isDataContext ? value : createDataContext(value);
-                    waitForReadyState("complete", bindAllElements.bind(this, htmlElement, true));
-                }
-
-                if (!htmlElement.datacontext) {
-
-                    value = document.querySelector("script#data")?.innerText;
-
-                    htmlElement.datacontext = createDataContext(value && parse(value) || {});
-                    waitForReadyState("complete", bindAllElements.bind(this, htmlElement));
-                }
+                htmlElement.datacontext = value._isDataContext ? value : createDataContext(value);
+                waitForReadyState("complete", bindAllElements.bind(this, htmlElement, true));
             }
 
-            globalScope.datacontext = htmlElement?.datacontext;
+            if (!htmlElement.datacontext) {
 
-            return htmlElement?.datacontext;
+                value = document.querySelector("script#data")?.innerText;
+
+                htmlElement.datacontext = createDataContext(value && parse(value) || {});
+                waitForReadyState("complete", bindAllElements.bind(this, htmlElement));
+            }
+
+            loadDataUrl();
+
+            globalScope.datacontext = htmlElement.datacontext;
+
+            return htmlElement.datacontext;
+        }
+
+        function loadDataUrl(url = dataUrl) {
+
+            if (url) {
+
+                fetch(url)
+                    .then(response => {
+
+                        if (!response.ok) { pError(`HTTP error! Status: ${response.status}`); }
+
+                        return response.text();
+                    })
+                    .then(str => {
+
+                        var data = parse(str);
+
+                        Object.keys(data).forEach(function (k) {
+
+                            if (!globalScope.datacontext[k]) {
+
+                                globalScope.datacontext[k] = createDataContext(data[k]);
+                            }
+                            else {
+
+                                syncData(globalScope.datacontext[k], data[k], true);
+                            }
+
+                            globalScope.datacontext[k].resetChanges();
+                        });
+                    })
+                    .catch(error => {
+
+                        pDebug('Error fetching data:', error);
+                    });
+            }
         }
 
         function waitForReadyState(state, cb) {
@@ -172,7 +211,7 @@
 
             if (element.contextValue && !rebinding) { return; }
 
-            if (element.bindingContext?.isActive) { element.bindingContext.isActive(false); } // for rebinding
+            if (!element?.attributes?.template && element.bindingContext?.isActive) { element.bindingContext.isActive(false); } // for rebinding
 
             if (element.attributes.link) {
 
@@ -221,6 +260,13 @@
             }
 
             function _template(selectors, isMultiple = false) {
+
+                if (selectors[0] === ':') {
+
+                    element.innerOriginalHTML = element.innerHTML;
+                    element.innerHTML = '';
+                    selectors = selectors.substring(1);
+                }
 
                 if (!selectors) { _tryBind(); return; }
 
@@ -583,7 +629,8 @@
             function _findPathAndSource() {
 
                 do {
-                    if (d.rootElement?.attributes?.path?.value) {
+                    if (d.rootElement?.attributes?.path?.value
+                        && (d.rootElement.attributes.path.value[0] !== '.' || d.rootElement === elem)) {
 
                         d.arrPath = d.arrPath.concat(
                             d.rootElement.attributes.path.value
@@ -1000,7 +1047,8 @@
             this.value = this.contextValue();
 
             // I am alive!
-            return true;
+            //return true;
+            return this.contextValue() === undefined ? false : true;
         }
         function setValueBind(event) {
 
@@ -1023,7 +1071,8 @@
             }
 
             // I am alive!
-            return true;
+            //return true;
+            return this.contextValue() === undefined ? false : true;
 
             function change(ev) { if (this.contextValue !== undefined) { this.contextValue(this.value); } }
             function keydown(ev) { if (ev.keyCode === 27) { this.value = this.contextValue(); } }
@@ -1249,6 +1298,9 @@
             if (event.eventName === "unbind") {
 
                 updateAttributeBinding.call(this, false, this.attributeBindingName, this.attributeBindingValue);
+                delete this.isValueInverted;
+                delete this.attributeBindingName;
+                delete this.attributeBindingValue;
 
                 // I am dead!
                 return false;
@@ -1258,7 +1310,7 @@
 
                 this.isValueInverted = event.isValueInverted;
                 this.attributeBindingName = event.bindArgs[0] || '';
-                this.attributeBindingValue = event.bindArgs[1] || '';
+                this.attributeBindingValue = event.bindArgs[1] || this.contextValue() || '';
             }
 
             updateAttributeBinding.call(this,
@@ -1270,16 +1322,97 @@
             // I am alive!
             return this.contextValue() === undefined ? false : true;
         }
+        function propertyBind(event) {
+
+            if (event.eventName === "unbind") {
+
+                delete this.isValueInverted;
+                delete this.propertyBindingName;
+                delete this.propertyBindingValue;
+                // I am dead!
+                return false;
+            }
+
+            if (event.eventName === "bind") {
+                this.isValueInverted = event.isValueInverted;
+                this.propertyBindingName = event.bindArgs[0] || '';
+                this.propertyBindingValue = event.bindArgs[1] || '';
+            }
+
+            var templateValue = this.propertyBindingValue || this.contextValue();
+
+            if (typeof templateValue === 'string') {
+
+                this[this.propertyBindingName] = resolveTemplateLiterals.call(this, templateValue, this.isValueInverted);
+            }
+            else {
+
+                this[this.propertyBindingName] = templateValue;
+            }
+
+            // I am alive!
+            return this.contextValue() === undefined ? false : true;
+        }
 
 
         function updateAttributeBinding(isEnabled, attributeName, attributeValue = '') {
 
             if (attributeName) {
 
-                if (isEnabled) { this.setAttribute(attributeName, attributeValue); }
+                attributeValue = resolveTemplateLiterals.call(this, attributeValue);
 
-                else { this.removeAttribute(attributeName); }
+                if (isEnabled) {
+
+                    this.setAttribute(attributeName, attributeValue);
+
+                    if (attributeName === 'template') {
+
+                        bindAllElements(this, true);
+                    }
+                }
+
+                else {
+
+                    this.removeAttribute(attributeName);
+
+                    if (attributeName === 'template') {
+
+                        if (this.innerOriginalHTML) {
+
+                            this.innerHTML = this.innerOriginalHTML;
+                            bindAllElements(this, false, true);
+                        }
+
+                    }
+                }
             }
+        }
+        function resolveTemplateLiterals(templateValue, isValueInverted) {
+
+            if (templateValue.indexOf('${')) {
+
+                templateValue = templateValue.replace(/\$\{([^\}]+)\}/g, function (match, propertyPath) {
+
+                    var value = this.contextValue(),
+                        propertyParts = propertyPath.split('.');
+
+                    if (value === undefined) { return ''; }
+
+                    while (propertyParts.length) {
+
+                        value = value[propertyParts.shift()];
+
+                        if (value === undefined) { return ''; }
+                    }
+
+                    if (isValueInverted) { value = !value; }
+
+                    return value;
+
+                }.bind(this));
+            }
+
+            return templateValue;
         }
 
         //#endregion
