@@ -43,6 +43,7 @@
             class: { value: classToggleBind, writable: true, configurable: false, enumerable: false },
             attribute: { value: attributeBind, writable: true, configurable: false, enumerable: false },
             property: { value: propertyBind, writable: true, configurable: false, enumerable: false },
+            language: { value: languageBind, writable: true, configurable: false, enumerable: false },
 
             input: { value: valueBind, writable: true, configurable: false, enumerable: false },
             input_checkbox: { value: checkBind, writable: true, configurable: false, enumerable: false },
@@ -1353,6 +1354,41 @@
             // I am alive!
             return this.contextValue() === undefined ? false : true;
         }
+        function languageBind(event) {
+
+            if (event?.eventName === "unbind") {
+
+                this.innerHTML = '';
+                // I am dead!
+                return false;
+            }
+
+            var val = this.contextValue();
+
+            if (typeof val === 'object' && val !== null) {
+
+                // If the value is an object, we will try to find the language key in it.
+                var lang = navigator.language || navigator.userLanguage || 'en';
+                lang = lang.toLowerCase().split('-')[0]; // Get the language code without region
+
+                if (val[lang] !== undefined) { val = val[lang]; }
+
+                else {
+
+                    val = val['en'];
+
+                    if (val[lang] !== undefined) {
+
+                        val = Object.values(val).find(function (v) { return typeof v === 'string'; }) || '';
+                    }
+                }
+            }
+
+            this.innerHTML = val;
+
+            // I am alive!
+            return val === undefined ? false : true;
+        }
 
 
         function updateAttributeBinding(isEnabled, attributeName, attributeValue = '') {
@@ -1389,28 +1425,41 @@
         }
         function resolveTemplateLiterals(templateValue, isValueInverted) {
 
-            if (templateValue.indexOf('${')) {
+            if (templateValue.indexOf('${') > -1) {
+
+                var isEmpty = false;
 
                 templateValue = templateValue.replace(/\$\{([^\}]+)\}/g, function (match, propertyPath) {
 
-                    var value = this.contextValue(),
-                        propertyParts = propertyPath.split('.');
+                    var value = this.contextValue();
 
-                    if (value === undefined) { return ''; }
+                    if (value === undefined) {
+
+                        if (isValueInverted) { isEmpty = true; }
+
+                        return '';
+                    }
+
+                    var propertyParts = propertyPath.split('.');
 
                     while (propertyParts.length) {
 
                         value = value[propertyParts.shift()];
 
-                        if (value === undefined) { return ''; }
-                    }
+                        if (value === undefined) {
 
-                    if (isValueInverted) { value = !value; }
+                            if (isValueInverted) { isEmpty = true; }
+
+                            return '';
+                        }
+                    }
 
                     return value;
 
                 }.bind(this));
             }
+
+            if (isValueInverted && isEmpty) { return ''; }
 
             return templateValue;
         }
